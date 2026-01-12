@@ -2,9 +2,10 @@ from typing import List, Dict, Any
 from ..schemas import BugPattern
 
 class TaxonomyClassifier:
-    def __init__(self, static_results: Dict, dynamic_results: Dict):
+    def __init__(self, static_results: Dict, dynamic_results: Dict, linguistic_results: Dict = None):
         self.static = static_results
         self.dynamic = dynamic_results
+        self.linguistic = linguistic_results or {}  # NEW: Stage 3 results
         self.bug_patterns = []
     
     def classify(self) -> List[BugPattern]:
