@@ -39,6 +39,8 @@ Thumbs.db
 frontend/build/
 frontend/dist/
 frontend/node_modules
+frontend/setup.txt
+
 
 # Database
 *.db

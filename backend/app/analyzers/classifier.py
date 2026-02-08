@@ -1,5 +1,5 @@
 from typing import List, Dict, Any
-from ..schemas import BugPattern
+from ..schemas import BugPatternSchema
 
 class TaxonomyClassifier:
     def __init__(self, static_results: Dict, dynamic_results: Dict, linguistic_results: Dict = None):
@@ -8,7 +8,7 @@ class TaxonomyClassifier:
         self.linguistic = linguistic_results or {}  # NEW: Stage 3 results
         self.bug_patterns = []
     
-    def classify(self) -> List[BugPattern]:
+    def classify(self) -> List[BugPatternSchema]:
         """Map analysis results to bug taxonomy patterns"""
         
         # Stage I: Static Analysis Patterns
@@ -62,7 +62,7 @@ class TaxonomyClassifier:
     
     def _add_syntax_error(self):
         error_info = self.static["syntax_error"]
-        self.bug_patterns.append(BugPattern(
+        self.bug_patterns.append(BugPatternSchema(
             pattern_name="Syntax Error",
             severity=9,
             confidence=1.0,
@@ -74,7 +74,7 @@ class TaxonomyClassifier:
     def _add_hallucinated_object(self):
         objects = self.static["hallucinated_objects"]["objects"]
         object_names = [obj['name'] if isinstance(obj, dict) else obj for obj in objects]
-        self.bug_patterns.append(BugPattern(
+        self.bug_patterns.append(BugPatternSchema(
             pattern_name="Hallucinated Object",
             severity=8,
             confidence=0.85,
@@ -85,7 +85,7 @@ class TaxonomyClassifier:
     
     def _add_hallucinated_object_from_runtime(self):
         error_info = self.dynamic["name_error"]
-        self.bug_patterns.append(BugPattern(
+        self.bug_patterns.append(BugPatternSchema(
             pattern_name="Hallucinated Object",
             severity=8,
             confidence=0.95,
@@ -97,7 +97,7 @@ class TaxonomyClassifier:
     def _add_incomplete_generation(self):
         details = self.static["incomplete_generation"]["details"]
         descriptions = [d['description'] for d in details]
-        self.bug_patterns.append(BugPattern(
+        self.bug_patterns.append(BugPatternSchema(
             pattern_name="Incomplete Generation",
             severity=7,
             confidence=0.90,
@@ -108,7 +108,7 @@ class TaxonomyClassifier:
     
     def _add_silly_mistake(self):
         details = self.static["silly_mistakes"]["details"]
-        self.bug_patterns.append(BugPattern(
+        self.bug_patterns.append(BugPatternSchema(
             pattern_name="Silly Mistake",
             severity=6,
             confidence=0.80,
@@ -119,7 +119,7 @@ class TaxonomyClassifier:
     
     def _add_wrong_attribute(self):
         error_info = self.dynamic["wrong_attribute"]
-        self.bug_patterns.append(BugPattern(
+        self.bug_patterns.append(BugPatternSchema(
             pattern_name="Wrong Attribute",
             severity=7,
             confidence=0.90,
@@ -131,7 +131,7 @@ class TaxonomyClassifier:
     def _add_wrong_attribute_static(self):
         details = self.static["wrong_attribute"]["details"]
         attrs = [f"{d['variable']}.{d['attribute']}" for d in details]
-        self.bug_patterns.append(BugPattern(
+        self.bug_patterns.append(BugPatternSchema(
             pattern_name="Wrong Attribute",
             severity=7,
             confidence=0.75,
@@ -142,7 +142,7 @@ class TaxonomyClassifier:
     
     def _add_wrong_input_type(self):
         error_info = self.dynamic["wrong_input_type"]
-        self.bug_patterns.append(BugPattern(
+        self.bug_patterns.append(BugPatternSchema(
             pattern_name="Wrong Input Type",
             severity=6,
             confidence=0.85,
@@ -153,7 +153,7 @@ class TaxonomyClassifier:
     
     def _add_npc(self):
         details = self.static["npc"]["details"]
-        self.bug_patterns.append(BugPattern(
+        self.bug_patterns.append(BugPatternSchema(
             pattern_name="Non-Prompted Consideration (NPC)",
             severity=5,
             confidence=0.70,
@@ -164,7 +164,7 @@ class TaxonomyClassifier:
     
     def _add_prompt_biased(self):
         details = self.static["prompt_biased"]["details"]
-        self.bug_patterns.append(BugPattern(
+        self.bug_patterns.append(BugPatternSchema(
             pattern_name="Prompt-Biased Code",
             severity=6,
             confidence=0.75,
@@ -175,7 +175,7 @@ class TaxonomyClassifier:
     
     def _add_missing_corner_case(self):
         details = self.static["missing_corner_case"]["details"]
-        self.bug_patterns.append(BugPattern(
+        self.bug_patterns.append(BugPatternSchema(
             pattern_name="Missing Corner Case",
             severity=5,
             confidence=0.65,
@@ -185,7 +185,7 @@ class TaxonomyClassifier:
         ))
     
     def _add_misinterpretation(self):
-        self.bug_patterns.append(BugPattern(
+        self.bug_patterns.append(BugPatternSchema(
             pattern_name="Misinterpretation",
             severity=7,
             confidence=0.60,
@@ -195,7 +195,7 @@ class TaxonomyClassifier:
         ))
     
     def _add_no_bugs_detected(self):
-        self.bug_patterns.append(BugPattern(
+        self.bug_patterns.append(BugPatternSchema(
             pattern_name="No Bugs Detected",
             severity=0,
             confidence=0.70,
