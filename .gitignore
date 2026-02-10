@@ -45,3 +45,6 @@ frontend/setup.txt
 # Database
 *.db
 *.sqlite3
+
+codeguard-vscode-extension
+
