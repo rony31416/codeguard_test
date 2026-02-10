@@ -1,0 +1,103 @@
+{
+  "name": "codeguard",
+  "displayName": "CodeGuard",
+  "description": "LLM Bug Taxonomy Classifier & Analyzer for AI-generated code",
+  "version": "1.0.0",
+  "publisher": "your-name",
+  "icon": "media/icon.png",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Linters",
+    "Testing",
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "codeguard.analyzeCode",
+        "title": "CodeGuard: Analyze Current File",
+        "icon": "$(bug)"
+      },
+      {
+        "command": "codeguard.analyzeSelection",
+        "title": "CodeGuard: Analyze Selection"
+      },
+      {
+        "command": "codeguard.openPanel",
+        "title": "CodeGuard: Open Analysis Panel"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "codeguard-sidebar",
+          "title": "CodeGuard",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "codeguard-sidebar": [
+        {
+          "type": "webview",
+          "id": "codeguard.sidePanel",
+          "name": "Bug Analysis",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "codeguard.analyzeSelection",
+          "when": "editorHasSelection",
+          "group": "codeguard"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "codeguard.analyzeCode",
+          "when": "editorLangId == python",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "CodeGuard",
+      "properties": {
+        "codeguard.apiUrl": {
+          "type": "string",
+          "default": "http://localhost:8000",
+          "description": "CodeGuard backend API URL"
+        },
+        "codeguard.autoAnalyze": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically analyze code on save"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/node": "18.x",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "axios": "^1.13.4"
+  }
+}
