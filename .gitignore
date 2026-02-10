@@ -47,3 +47,8 @@ frontend/setup.txt
 *.sqlite3
 
 codeguard-vscode-extension/codeguard
+
+*.vsix
+*media
+
+
