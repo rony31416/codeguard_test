@@ -66,6 +66,7 @@ function activate(context) {
             ignoreFocusOut: true
         });
         // Show progress
+        provider.showLoading();
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
             title: "CodeGuard: Analyzing code...",
@@ -78,7 +79,7 @@ function activate(context) {
                     code: code
                 });
                 // Send result to sidebar panel
-                provider.updateAnalysis(result, fileName);
+                provider.showAnalysis(result);
                 // Show notification
                 if (result.has_bugs) {
                     vscode.window.showWarningMessage(`CodeGuard: Found ${result.bug_patterns.length} bug pattern(s)`, 'View Details').then(selection => {
@@ -88,7 +89,7 @@ function activate(context) {
                     });
                 }
                 else {
-                    vscode.window.showInformationMessage('CodeGuard: No obvious bugs detected ✓');
+                    vscode.window.showInformationMessage('CodeGuard: No obvious bugs detected');
                 }
                 // Add decorations to editor
                 addBugDecorations(editor, result.bug_patterns);
@@ -113,6 +114,7 @@ function activate(context) {
             prompt: 'Enter the prompt for this code snippet',
             placeHolder: 'Original prompt...'
         });
+        provider.showLoading();
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
             title: "Analyzing selection...",
@@ -123,7 +125,7 @@ function activate(context) {
                     prompt: prompt || 'No prompt',
                     code: code
                 });
-                provider.updateAnalysis(result, 'Selection');
+                provider.showAnalysis(result);
             }
             catch (error) {
                 vscode.window.showErrorMessage(error.message);

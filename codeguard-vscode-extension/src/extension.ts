@@ -45,6 +45,8 @@ export function activate(context: vscode.ExtensionContext) {
             });
 
             // Show progress
+            provider.showLoading();
+            
             await vscode.window.withProgress({
                 location: vscode.ProgressLocation.Notification,
                 title: "CodeGuard: Analyzing code...",
@@ -58,7 +60,7 @@ export function activate(context: vscode.ExtensionContext) {
                     });
 
                     // Send result to sidebar panel
-                    provider.updateAnalysis(result, fileName);
+                    provider.showAnalysis(result);
 
                     // Show notification
                     if (result.has_bugs) {
@@ -72,7 +74,7 @@ export function activate(context: vscode.ExtensionContext) {
                         });
                     } else {
                         vscode.window.showInformationMessage(
-                            'CodeGuard: No obvious bugs detected ✓'
+                            'CodeGuard: No obvious bugs detected'
                         );
                     }
 
@@ -108,6 +110,8 @@ export function activate(context: vscode.ExtensionContext) {
                 placeHolder: 'Original prompt...'
             });
 
+            provider.showLoading();
+            
             await vscode.window.withProgress({
                 location: vscode.ProgressLocation.Notification,
                 title: "Analyzing selection...",
@@ -118,7 +122,7 @@ export function activate(context: vscode.ExtensionContext) {
                         prompt: prompt || 'No prompt',
                         code: code
                     });
-                    provider.updateAnalysis(result, 'Selection');
+                    provider.showAnalysis(result);
                 } catch (error: any) {
                     vscode.window.showErrorMessage(error.message);
                 }

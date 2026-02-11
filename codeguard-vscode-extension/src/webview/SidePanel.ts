@@ -1,9 +1,20 @@
 import * as vscode from 'vscode';
+import { analyzeCode, submitFeedback } from '../services/apiService';
 
 export class CodeGuardPanel implements vscode.WebviewViewProvider {
+    public static readonly viewType = 'codeguard.sidePanel';
     private _view?: vscode.WebviewView;
+    private _currentEditor?: vscode.TextEditor;
+    private _decorationType?: vscode.TextEditorDecorationType;
 
-    constructor(private readonly _extensionUri: vscode.Uri) {}
+    constructor(private readonly _extensionUri: vscode.Uri) {
+        // Create decoration type for bug highlighting
+        this._decorationType = vscode.window.createTextEditorDecorationType({
+            backgroundColor: 'rgba(255, 0, 0, 0.1)',
+            border: '1px solid red',
+            borderRadius: '2px'
+        });
+    }
 
     public resolveWebviewView(
         webviewView: vscode.WebviewView,
@@ -20,234 +31,146 @@ export class CodeGuardPanel implements vscode.WebviewViewProvider {
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
         // Handle messages from webview
-        webviewView.webview.onDidReceiveMessage(data => {
-            switch (data.type) {
-                case 'analyzeFile':
-                    vscode.commands.executeCommand('codeguard.analyzeCode');
+        webviewView.webview.onDidReceiveMessage(async (message) => {
+            switch (message.command) {
+                case 'analyzeCode':
+                    await this.handleAnalyzeRequest(message.data);
                     break;
-                case 'openSettings':
-                    vscode.commands.executeCommand('workbench.action.openSettings', 'codeguard');
+                case 'submitFeedback':
+                    await this.handleFeedbackSubmission(message.data);
                     break;
             }
         });
     }
 
-    public updateAnalysis(result: any, fileName: string) {
+    private async handleAnalyzeRequest(data: any) {
+        try {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) {
+                vscode.window.showErrorMessage('No active editor found!');
+                return;
+            }
+
+            // Store current editor reference
+            this._currentEditor = editor;
+
+            // Get selected text or entire document
+            const selection = editor.selection;
+            let code: string;
+
+            if (selection.isEmpty) {
+                // No selection, analyze entire file
+                code = editor.document.getText();
+            } else {
+                // Analyze selection
+                code = editor.document.getText(selection);
+            }
+
+            if (!code.trim()) {
+                vscode.window.showWarningMessage('No code to analyze!');
+                return;
+            }
+
+            // Show loading state
+            this.showLoading();
+
+            // Analyze code
+            const result = await analyzeCode({
+                prompt: data.prompt || 'No prompt provided',
+                code: code
+            });
+
+            // Show results
+            this.showAnalysis(result);
+
+            // Add decorations to editor for bug highlighting
+            this.addBugDecorations(editor, result.bug_patterns);
+
+            // Send completion message
+            this._view?.webview.postMessage({ command: 'analysisComplete' });
+
+            // Show notification
+            if (result.has_bugs) {
+                vscode.window.showWarningMessage(
+                    `CodeGuard: Found ${result.bug_patterns.length} bug pattern(s)`
+                );
+            } else {
+                vscode.window.showInformationMessage('CodeGuard: No obvious bugs detected');
+            }
+        } catch (error: any) {
+            this._view?.webview.postMessage({ command: 'analysisComplete' });
+            vscode.window.showErrorMessage(`Analysis failed: ${error.message}`);
+        }
+    }
+
+    private async handleFeedbackSubmission(feedbackData: any) {
+        try {
+            await submitFeedback(feedbackData);
+
+            // Send success message to webview
+            this._view?.webview.postMessage({
+                command: 'feedbackSuccess'
+            });
+
+            vscode.window.showInformationMessage('Thank you for your feedback!');
+        } catch (error: any) {
+            // Send error message to webview
+            this._view?.webview.postMessage({
+                command: 'feedbackError',
+                error: error.message
+            });
+
+            vscode.window.showErrorMessage(`Failed to submit feedback: ${error.message}`);
+        }
+    }
+
+    public showLoading() {
+        if (this._view) {
+            this._view.webview.postMessage({ command: 'showLoading' });
+        }
+    }
+
+    public showAnalysis(analysisResult: any) {
         if (this._view) {
             this._view.webview.postMessage({
-                type: 'analysisResult',
-                result: result,
-                fileName: fileName
+                command: 'showAnalysis',
+                data: analysisResult
             });
         }
     }
 
-    private _getHtmlForWebview(webview: vscode.Webview) {
-        return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CodeGuard Analysis</title>
-    <style>
-        body {
-            padding: 10px;
-            font-family: var(--vscode-font-family);
-            color: var(--vscode-foreground);
-            background-color: var(--vscode-editor-background);
-        }
-        .header {
-            margin-bottom: 20px;
-        }
-        .logo {
-            font-size: 24px;
-            font-weight: bold;
-            color: var(--vscode-textLink-foreground);
-        }
-        .analyze-btn {
-            width: 100%;
-            padding: 10px;
-            background-color: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            margin-bottom: 10px;
-        }
-        .analyze-btn:hover {
-            background-color: var(--vscode-button-hoverBackground);
-        }
-        .results {
-            display: none;
-        }
-        .results.show {
-            display: block;
-        }
-        .severity-box {
-            padding: 15px;
-            border-radius: 6px;
-            margin-bottom: 15px;
-            border-left: 4px solid;
-        }
-        .severity-critical {
-            background-color: rgba(255, 0, 0, 0.1);
-            border-left-color: #f44336;
-        }
-        .severity-high {
-            background-color: rgba(255, 152, 0, 0.1);
-            border-left-color: #ff9800;
-        }
-        .severity-medium {
-            background-color: rgba(255, 235, 59, 0.1);
-            border-left-color: #ffeb3b;
-        }
-        .severity-low {
-            background-color: rgba(76, 175, 80, 0.1);
-            border-left-color: #4caf50;
-        }
-        .bug-pattern {
-            background-color: var(--vscode-editor-inactiveSelectionBackground);
-            padding: 12px;
-            margin-bottom: 10px;
-            border-radius: 4px;
-            border: 1px solid var(--vscode-panel-border);
-        }
-        .bug-pattern h4 {
-            margin: 0 0 8px 0;
-            color: var(--vscode-textLink-foreground);
-        }
-        .bug-pattern p {
-            margin: 5px 0;
-            font-size: 13px;
-        }
-        .badge {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 3px;
-            font-size: 11px;
-            margin-right: 5px;
-        }
-        .badge-severity {
-            background-color: var(--vscode-badge-background);
-            color: var(--vscode-badge-foreground);
-        }
-        .badge-confidence {
-            background-color: var(--vscode-textPreformat-background);
-            color: var(--vscode-textPreformat-foreground);
-        }
-        .fix-suggestion {
-            background-color: var(--vscode-textBlockQuote-background);
-            border-left: 3px solid var(--vscode-textLink-foreground);
-            padding: 8px;
-            margin-top: 8px;
-            font-size: 12px;
-        }
-        .no-results {
-            text-align: center;
-            padding: 40px 20px;
-            color: var(--vscode-descriptionForeground);
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <div class="logo">🛡️ CodeGuard</div>
-        <p style="font-size: 12px; color: var(--vscode-descriptionForeground);">
-            LLM Bug Taxonomy Analyzer
-        </p>
-    </div>
-
-    <button class="analyze-btn" onclick="analyzeCurrentFile()">
-        🔍 Analyze Current File
-    </button>
-
-    <div id="no-results" class="no-results">
-        <p>No analysis yet.</p>
-        <p style="font-size: 12px;">Click the button above to analyze your code.</p>
-    </div>
-
-    <div id="results" class="results">
-        <div id="severity-box"></div>
-        <h3>Detected Bug Patterns</h3>
-        <div id="bug-patterns"></div>
-    </div>
-
-    <script>
-        const vscode = acquireVsCodeApi();
-
-        function analyzeCurrentFile() {
-            vscode.postMessage({ type: 'analyzeFile' });
+    private addBugDecorations(editor: vscode.TextEditor, bugPatterns: any[]) {
+        if (!this._decorationType) {
+            return;
         }
 
-        // Listen for messages from extension
-        window.addEventListener('message', event => {
-            const message = event.data;
-            
-            if (message.type === 'analysisResult') {
-                displayResults(message.result, message.fileName);
+        const decorations: vscode.DecorationOptions[] = [];
+
+        for (const bug of bugPatterns) {
+            // Try to extract line number from location
+            const lineMatch = bug.location?.match(/Line (\d+)/);
+            if (lineMatch) {
+                const lineNumber = parseInt(lineMatch[1]) - 1; // 0-indexed
+                if (lineNumber >= 0 && lineNumber < editor.document.lineCount) {
+                    const line = editor.document.lineAt(lineNumber);
+                    const range = new vscode.Range(
+                        lineNumber, 0,
+                        lineNumber, line.text.length
+                    );
+                    decorations.push({
+                        range,
+                        hoverMessage: `**${bug.pattern_name}** (Severity: ${bug.severity}/10)\n\n${bug.description}\n\n**Fix:** ${bug.fix_suggestion}`
+                    });
+                }
             }
-        });
-
-        function displayResults(result, fileName) {
-            document.getElementById('no-results').style.display = 'none';
-            document.getElementById('results').classList.add('show');
-
-            // Display severity summary
-            const severityBox = document.getElementById('severity-box');
-            const severityClass = getSeverityClass(result.overall_severity);
-            severityBox.className = 'severity-box ' + severityClass;
-            severityBox.innerHTML = \`
-                <h3>Overall Severity: \${getSeverityLabel(result.overall_severity)}</h3>
-                <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">
-                    \${result.overall_severity}/10
-                </div>
-                <p style="font-size: 13px;">\${result.summary}</p>
-                <p style="font-size: 11px; margin-top: 10px; opacity: 0.7;">
-                    File: \${fileName}
-                </p>
-            \`;
-
-            // Display bug patterns
-            const patternsDiv = document.getElementById('bug-patterns');
-            patternsDiv.innerHTML = '';
-
-            result.bug_patterns.forEach(bug => {
-                const bugDiv = document.createElement('div');
-                bugDiv.className = 'bug-pattern';
-                bugDiv.innerHTML = \`
-                    <h4>\${bug.pattern_name}</h4>
-                    <div>
-                        <span class="badge badge-severity">Severity: \${bug.severity}/10</span>
-                        <span class="badge badge-confidence">Confidence: \${Math.round(bug.confidence * 100)}%</span>
-                    </div>
-                    <p>\${bug.description}</p>
-                    \${bug.location ? \`<p style="font-size: 11px;"><strong>Location:</strong> \${bug.location}</p>\` : ''}
-                    <div class="fix-suggestion">
-                        <strong>💡 Fix Suggestion:</strong><br>
-                        \${bug.fix_suggestion}
-                    </div>
-                \`;
-                patternsDiv.appendChild(bugDiv);
-            });
         }
 
-        function getSeverityClass(severity) {
-            if (severity >= 8) return 'severity-critical';
-            if (severity >= 6) return 'severity-high';
-            if (severity >= 4) return 'severity-medium';
-            return 'severity-low';
-        }
+        editor.setDecorations(this._decorationType, decorations);
+    }
 
-        function getSeverityLabel(severity) {
-            if (severity >= 8) return 'Critical';
-            if (severity >= 6) return 'High';
-            if (severity >= 4) return 'Medium';
-            if (severity > 0) return 'Low';
-            return 'No Issues';
-        }
-    </script>
-</body>
-</html>`;
+    private _getHtmlForWebview(webview: vscode.Webview): string {
+        const htmlPath = vscode.Uri.joinPath(this._extensionUri, 'src', 'webview', 'webview.html');
+        const fs = require('fs');
+        return fs.readFileSync(htmlPath.fsPath, 'utf8');
     }
 }

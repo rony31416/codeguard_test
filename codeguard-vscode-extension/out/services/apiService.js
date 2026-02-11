@@ -37,17 +37,21 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.analyzeCode = analyzeCode;
+exports.submitFeedback = submitFeedback;
 const axios_1 = __importDefault(require("axios"));
 const vscode = __importStar(require("vscode"));
 async function analyzeCode(request) {
     const config = vscode.workspace.getConfiguration('codeguard');
-    const apiUrl = config.get('apiUrl', 'http://localhost:8000');
+    const useLocal = config.get('useLocalBackend', false);
+    const defaultUrl = 'https://codeguard-production.up.railway.app'; // Update with your hosted URL
+    const localUrl = 'http://localhost:8000';
+    const apiUrl = useLocal ? localUrl : config.get('apiUrl', defaultUrl);
     try {
         const response = await axios_1.default.post(`${apiUrl}/api/analyze`, request, {
             headers: {
                 'Content-Type': 'application/json',
             },
-            timeout: 30000 // 30 seconds
+            timeout: 60000
         });
         return response.data;
     }
@@ -57,6 +61,33 @@ async function analyzeCode(request) {
         }
         else if (error.request) {
             throw new Error('Cannot connect to CodeGuard backend. Make sure it\'s running on ' + apiUrl);
+        }
+        else {
+            throw new Error(error.message);
+        }
+    }
+}
+async function submitFeedback(request) {
+    const config = vscode.workspace.getConfiguration('codeguard');
+    const useLocal = config.get('useLocalBackend', false);
+    const defaultUrl = 'https://codeguard-production.up.railway.app';
+    const localUrl = 'http://localhost:8000';
+    const apiUrl = useLocal ? localUrl : config.get('apiUrl', defaultUrl);
+    try {
+        const response = await axios_1.default.post(`${apiUrl}/api/feedback`, request, {
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            timeout: 10000
+        });
+        return response.data;
+    }
+    catch (error) {
+        if (error.response) {
+            throw new Error(`Feedback Error: ${error.response.data.detail || error.message}`);
+        }
+        else if (error.request) {
+            throw new Error('Cannot submit feedback. Backend not reachable.');
         }
         else {
             throw new Error(error.message);

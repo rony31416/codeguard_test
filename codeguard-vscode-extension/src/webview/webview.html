@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeGuard Analysis</title>
+    <style>
+        body {
+            padding: 0;
+            margin: 0;
+            color: var(--vscode-foreground);
+            font-family: var(--vscode-font-family);
+            font-size: var(--vscode-font-size);
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        .input-section {
+            padding: 15px;
+            border-bottom: 1px solid var(--vscode-panel-border);
+            background-color: var(--vscode-sideBar-background);
+        }
+        
+        .prompt-input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            background-color: var(--vscode-input-background);
+            color: var(--vscode-input-foreground);
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 4px;
+            font-family: var(--vscode-font-family);
+            font-size: 12px;
+            resize: vertical;
+            min-height: 60px;
+            box-sizing: border-box;
+        }
+        
+        .analyze-btn {
+            width: 100%;
+            padding: 10px 16px;
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+        
+        .analyze-btn:hover:not(:disabled) {
+            background-color: var(--vscode-button-hoverBackground);
+        }
+        
+        .analyze-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+        }
+        
+        .analysis-header {
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--vscode-panel-border);
+        }
+        
+        .severity-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .severity-critical { background-color: #f44336; color: white; }
+        .severity-high { background-color: #ff9800; color: white; }
+        .severity-medium { background-color: #ffeb3b; color: black; }
+        .severity-low { background-color: #4caf50; color: white; }
+        
+        .bug-pattern {
+            margin: 15px 0;
+            padding: 12px;
+            background-color: var(--vscode-editor-background);
+            border-left: 3px solid var(--vscode-textLink-foreground);
+            border-radius: 4px;
+        }
+        
+        .bug-pattern-name {
+            font-weight: bold;
+            color: var(--vscode-textLink-foreground);
+            margin-bottom: 8px;
+        }
+        
+        .bug-description {
+            margin: 8px 0;
+            color: var(--vscode-descriptionForeground);
+        }
+        
+        .bug-location {
+            font-family: var(--vscode-editor-font-family);
+            font-size: 12px;
+            color: var(--vscode-terminal-ansiYellow);
+            margin: 8px 0;
+        }
+        
+        .fix-suggestion {
+            margin-top: 8px;
+            padding: 8px;
+            background-color: var(--vscode-textBlockQuote-background);
+            border-left: 2px solid var(--vscode-textLink-activeForeground);
+            font-size: 12px;
+        }
+        
+        .no-analysis {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--vscode-descriptionForeground);
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px 20px;
+        }
+        
+        .info-message {
+            padding: 10px;
+            background-color: var(--vscode-textBlockQuote-background);
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 12px;
+        }
+        
+        .summary {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: var(--vscode-textBlockQuote-background);
+            border-radius: 4px;
+            text-align: left;
+            white-space: pre-line;
+            line-height: 1.6;
+        }
+        
+        /* Feedback Section */
+        .feedback-toggle-btn {
+            position: sticky;
+            bottom: 0;
+            width: 100%;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px 8px 0 0;
+            color: var(--vscode-foreground);
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            text-align: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .feedback-toggle-btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.15);
+        }
+        
+        .feedback-section {
+            position: fixed;
+            bottom: -500px;
+            left: 0;
+            right: 0;
+            background-color: var(--vscode-sideBar-background);
+            border-top: 1px solid var(--vscode-panel-border);
+            padding: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+            transition: bottom 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.2);
+        }
+        
+        .feedback-section.expanded {
+            bottom: 0;
+        }
+        
+        .feedback-header {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: var(--vscode-foreground);
+        }
+        
+        .rating-container {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        
+        .star {
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--vscode-descriptionForeground);
+            transition: color 0.2s;
+        }
+        
+        .star:hover,
+        .star.selected {
+            color: #ffd700;
+        }
+        
+        .helpful-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .helpful-btn {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid var(--vscode-button-border);
+            background-color: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        
+        .helpful-btn:hover {
+            background-color: var(--vscode-button-secondaryHoverBackground);
+        }
+        
+        .helpful-btn.active {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border-color: var(--vscode-button-background);
+        }
+        
+        .comment-input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            background-color: var(--vscode-input-background);
+            color: var(--vscode-input-foreground);
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 4px;
+            font-family: var(--vscode-font-family);
+            font-size: 12px;
+            resize: vertical;
+            min-height: 60px;
+        }
+        
+        .submit-feedback-btn {
+            width: 100%;
+            padding: 10px 16px;
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+        
+        .submit-feedback-btn:hover {
+            background-color: var(--vscode-button-hoverBackground);
+        }
+        
+        .submit-feedback-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .feedback-success {
+            padding: 10px;
+            background-color: #4caf50;
+            color: white;
+            border-radius: 4px;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        
+        .feedback-error {
+            padding: 10px;
+            background-color: #f44336;
+            color: white;
+            border-radius: 4px;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Input Section -->
+        <div class="input-section">
+            <textarea 
+                class="prompt-input" 
+                id="prompt-input" 
+                placeholder="Enter the prompt used to generate the code (optional)..."
+            ></textarea>
+            <button class="analyze-btn" id="analyze-btn">
+                Analyze Code
+            </button>
+        </div>
+        
+        <!-- Results Section -->
+        <div class="content">
+            <div id="analysis-container" class="no-analysis">
+                <p>Select code in the editor and click "Analyze Code" to see results here.</p>
+            </div>
+        </div>
+        
+        <!-- Feedback Toggle Button -->
+        <button id="feedback-toggle-btn" class="feedback-toggle-btn" style="display: none;">
+            Want to rate this analysis?
+        </button>
+        
+        <!-- Feedback Section -->
+        <div id="feedback-section" class="feedback-section">
+            <div class="feedback-header">Rate This Analysis</div>
+            
+            <div id="feedback-message" style="display: none;"></div>
+            
+            <div class="rating-container">
+                <span class="star" data-rating="1">★</span>
+                <span class="star" data-rating="2">★</span>
+                <span class="star" data-rating="3">★</span>
+                <span class="star" data-rating="4">★</span>
+                <span class="star" data-rating="5">★</span>
+            </div>
+            
+            <div class="helpful-buttons">
+                <button class="helpful-btn" id="helpful-yes">Helpful</button>
+                <button class="helpful-btn" id="helpful-no">Not Helpful</button>
+            </div>
+            
+            <textarea 
+                class="comment-input" 
+                id="feedback-comment" 
+                placeholder="Additional comments (optional)..."
+            ></textarea>
+            
+            <button class="submit-feedback-btn" id="submit-feedback" disabled>
+                Submit Feedback
+            </button>
+        </div>
+    </div>
+    
+    <script>
+        const vscode = acquireVsCodeApi();
+        let currentAnalysisId = null;
+        let selectedRating = 0;
+        let isHelpful = null;
+        
+        // Analyze button
+        document.getElementById('analyze-btn').addEventListener('click', () => {
+            const editor = vscode.getState()?.hasActiveEditor;
+            const prompt = document.getElementById('prompt-input').value;
+            
+            vscode.postMessage({
+                command: 'analyzeCode',
+                data: { prompt }
+            });
+        });
+        
+        // Feedback toggle button
+        document.getElementById('feedback-toggle-btn').addEventListener('click', () => {
+            const feedbackSection = document.getElementById('feedback-section');
+            const toggleBtn = document.getElementById('feedback-toggle-btn');
+            
+            if (feedbackSection.classList.contains('expanded')) {
+                feedbackSection.classList.remove('expanded');
+                toggleBtn.textContent = 'Want to rate this analysis?';
+            } else {
+                feedbackSection.classList.add('expanded');
+                toggleBtn.textContent = 'Hide rating panel';
+            }
+        });
+        
+        // Rating stars
+        const stars = document.querySelectorAll('.star');
+        stars.forEach(star => {
+            star.addEventListener('click', () => {
+                selectedRating = parseInt(star.dataset.rating);
+                updateStars();
+                updateSubmitButton();
+            });
+        });
+        
+        function updateStars() {
+            stars.forEach((star, index) => {
+                if (index < selectedRating) {
+                    star.classList.add('selected');
+                } else {
+                    star.classList.remove('selected');
+                }
+            });
+        }
+        
+        // Helpful buttons
+        const helpfulYes = document.getElementById('helpful-yes');
+        const helpfulNo = document.getElementById('helpful-no');
+        
+        helpfulYes.addEventListener('click', () => {
+            isHelpful = true;
+            helpfulYes.classList.add('active');
+            helpfulNo.classList.remove('active');
+            updateSubmitButton();
+        });
+        
+        helpfulNo.addEventListener('click', () => {
+            isHelpful = false;
+            helpfulNo.classList.add('active');
+            helpfulYes.classList.remove('active');
+            updateSubmitButton();
+        });
+        
+        function updateSubmitButton() {
+            const submitBtn = document.getElementById('submit-feedback');
+            submitBtn.disabled = !(selectedRating > 0 && isHelpful !== null);
+        }
+        
+        // Submit feedback
+        document.getElementById('submit-feedback').addEventListener('click', () => {
+            const comment = document.getElementById('feedback-comment').value;
+            
+            if (!currentAnalysisId) {
+                showFeedbackMessage('No analysis to rate', 'error');
+                return;
+            }
+            
+            vscode.postMessage({
+                command: 'submitFeedback',
+                data: {
+                    analysis_id: currentAnalysisId,
+                    rating: selectedRating,
+                    comment: comment || undefined,
+                    is_helpful: isHelpful
+                }
+            });
+            
+            // Disable button while submitting
+            document.getElementById('submit-feedback').disabled = true;
+            document.getElementById('submit-feedback').textContent = 'Submitting...';
+        });
+        
+        function showFeedbackMessage(message, type) {
+            const messageDiv = document.getElementById('feedback-message');
+            messageDiv.className = type === 'success' ? 'feedback-success' : 'feedback-error';
+            messageDiv.textContent = message;
+            messageDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 3000);
+        }
+        
+        function resetFeedbackForm() {
+            selectedRating = 0;
+            isHelpful = null;
+            updateStars();
+            document.getElementById('feedback-comment').value = '';
+            helpfulYes.classList.remove('active');
+            helpfulNo.classList.remove('active');
+            updateSubmitButton();
+        }
+        
+        // Handle messages from extension
+        window.addEventListener('message', event => {
+            const message = event.data;
+            
+            switch (message.command) {
+                case 'showAnalysis':
+                    displayAnalysis(message.data);
+                    currentAnalysisId = message.data.analysis_id;
+                    document.getElementById('feedback-toggle-btn').style.display = 'block';
+                    document.getElementById('feedback-section').classList.remove('expanded');
+                    document.getElementById('feedback-toggle-btn').textContent = 'Want to rate this analysis?';
+                    resetFeedbackForm();
+                    break;
+                    
+                case 'showLoading':
+                    document.getElementById('analysis-container').innerHTML = 
+                        '<div class="loading">Analyzing code...</div>';
+                    document.getElementById('feedback-toggle-btn').style.display = 'none';
+                    document.getElementById('feedback-section').classList.remove('expanded');
+                    document.getElementById('analyze-btn').disabled = true;
+                    document.getElementById('analyze-btn').textContent = 'Analyzing...';
+                    break;
+                    
+                case 'feedbackSuccess':
+                    showFeedbackMessage('Feedback submitted successfully!', 'success');
+                    document.getElementById('submit-feedback').textContent = 'Submit Feedback';
+                    document.getElementById('submit-feedback').disabled = true;
+                    resetFeedbackForm();
+                    
+                    // Collapse feedback section after 1.5 seconds
+                    setTimeout(() => {
+                        document.getElementById('feedback-section').classList.remove('expanded');
+                        document.getElementById('feedback-toggle-btn').textContent = 'Want to rate this analysis?';
+                    }, 1500);
+                    break;
+                    
+                case 'feedbackError':
+                    showFeedbackMessage('Failed to submit feedback: ' + message.error, 'error');
+                    document.getElementById('submit-feedback').textContent = 'Submit Feedback';
+                    updateSubmitButton();
+                    break;
+                    
+                case 'analysisComplete':
+                    document.getElementById('analyze-btn').disabled = false;
+                    document.getElementById('analyze-btn').textContent = 'Analyze Code';
+                    break;
+            }
+        });
+        
+        function displayAnalysis(data) {
+            const container = document.getElementById('analysis-container');
+            
+            const severityClass = 
+                data.overall_severity >= 8 ? 'severity-critical' :
+                data.overall_severity >= 6 ? 'severity-high' :
+                data.overall_severity >= 4 ? 'severity-medium' : 'severity-low';
+            
+            const severityLabel = 
+                data.overall_severity >= 8 ? 'CRITICAL' :
+                data.overall_severity >= 6 ? 'HIGH' :
+                data.overall_severity >= 4 ? 'MEDIUM' : 'LOW';
+            
+            let html = `
+                <div class="analysis-header">
+                    <h3>Analysis Results
+                        <span class="severity-badge ${severityClass}">${severityLabel} (${data.overall_severity}/10)</span>
+                    </h3>
+                </div>
+            `;
+            
+            if (data.summary) {
+                // Display summary with proper line breaks and left alignment
+                html += `<div class="summary"><strong>Summary:</strong>\n${escapeHtml(data.summary)}</div>`;
+            }
+            
+            if (data.bug_patterns && data.bug_patterns.length > 0) {
+                html += '<h4>Detected Issues:</h4>';
+                data.bug_patterns.forEach(bug => {
+                    html += `
+                        <div class="bug-pattern">
+                            <div class="bug-pattern-name">${escapeHtml(bug.pattern_name)}</div>
+                            <div class="bug-description">${escapeHtml(bug.description)}</div>
+                            ${bug.location ? `<div class="bug-location">Location: ${escapeHtml(bug.location)}</div>` : ''}
+                            ${bug.fix_suggestion ? `<div class="fix-suggestion"><strong>Fix:</strong> ${escapeHtml(bug.fix_suggestion)}</div>` : ''}
+                        </div>
+                    `;
+                });
+            } else {
+                html += '<p style="color: #4caf50;">No bugs detected!</p>';
+            }
+            
+            container.innerHTML = html;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
-from datetime import datetime
 from .database import Base
+from datetime import datetime
 
 class Analysis(Base):
     __tablename__ = "analyses"
@@ -20,7 +20,7 @@ class Analysis(Base):
     
     # Relationships
     bug_patterns = relationship("BugPattern", back_populates="analysis", cascade="all, delete-orphan")
-    feedback = relationship("Feedback", back_populates="analysis", uselist=False, cascade="all, delete-orphan")
+    feedbacks = relationship("Feedback", back_populates="analysis", cascade="all, delete-orphan")
     execution_logs = relationship("ExecutionLog", back_populates="analysis", cascade="all, delete-orphan")
     linguistic_analysis = relationship("LinguisticAnalysis", back_populates="analysis", uselist=False, cascade="all, delete-orphan")
 
@@ -45,14 +45,15 @@ class BugPattern(Base):
 class Feedback(Base):
     __tablename__ = "feedback"
     
-    feedback_id = Column(Integer, primary_key=True, index=True)
-    analysis_id = Column(Integer, ForeignKey('analyses.analysis_id'), nullable=False)
-    feedback_type = Column(String(20), nullable=False)  # 'correct', 'incorrect', 'partial'
-    comment = Column(Text)
-    submitted_at = Column(DateTime, default=datetime.utcnow)
+    id = Column(Integer, primary_key=True, index=True)
+    analysis_id = Column(Integer, ForeignKey("analyses.analysis_id"), nullable=False)
+    rating = Column(Integer, nullable=False)  # 1-5
+    comment = Column(Text, nullable=True)
+    is_helpful = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationship
-    analysis = relationship("Analysis", back_populates="feedback")
+    analysis = relationship("Analysis", back_populates="feedbacks")
 
 
 class ExecutionLog(Base):

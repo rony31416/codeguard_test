@@ -20,3 +20,6 @@ def get_discounted_price(product_list, discount_rate):
             raise Exception("Price too high for non-admin user")
         
         final_val =
+
+
+        

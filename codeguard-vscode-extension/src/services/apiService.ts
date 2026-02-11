@@ -16,9 +16,29 @@ interface AnalysisResponse {
     created_at: string;
 }
 
+interface FeedbackRequest {
+    analysis_id: number;
+    rating: number;
+    comment?: string;
+    is_helpful: boolean;
+}
+
+interface FeedbackResponse {
+    id: number;
+    analysis_id: number;
+    rating: number;
+    comment?: string;
+    is_helpful: boolean;
+    created_at: string;
+}
+
 export async function analyzeCode(request: CodeAnalysisRequest): Promise<AnalysisResponse> {
     const config = vscode.workspace.getConfiguration('codeguard');
-    const apiUrl = config.get<string>('apiUrl', 'http://localhost:8000');
+    const useLocal = config.get<boolean>('useLocalBackend', false);
+    
+    const defaultUrl = 'https://codeguard-production.up.railway.app'; // Update with your hosted URL
+    const localUrl = 'http://localhost:8000';
+    const apiUrl = useLocal ? localUrl : config.get<string>('apiUrl', defaultUrl);
 
     try {
         const response = await axios.post<AnalysisResponse>(
@@ -28,7 +48,7 @@ export async function analyzeCode(request: CodeAnalysisRequest): Promise<Analysi
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                timeout: 30000 // 30 seconds
+                timeout: 60000
             }
         );
         return response.data;
@@ -37,6 +57,37 @@ export async function analyzeCode(request: CodeAnalysisRequest): Promise<Analysi
             throw new Error(`API Error: ${error.response.data.detail || error.message}`);
         } else if (error.request) {
             throw new Error('Cannot connect to CodeGuard backend. Make sure it\'s running on ' + apiUrl);
+        } else {
+            throw new Error(error.message);
+        }
+    }
+}
+
+export async function submitFeedback(request: FeedbackRequest): Promise<FeedbackResponse> {
+    const config = vscode.workspace.getConfiguration('codeguard');
+    const useLocal = config.get<boolean>('useLocalBackend', false);
+    
+    const defaultUrl = 'https://codeguard-production.up.railway.app';
+    const localUrl = 'http://localhost:8000';
+    const apiUrl = useLocal ? localUrl : config.get<string>('apiUrl', defaultUrl);
+
+    try {
+        const response = await axios.post<FeedbackResponse>(
+            `${apiUrl}/api/feedback`,
+            request,
+            {
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                timeout: 10000
+            }
+        );
+        return response.data;
+    } catch (error: any) {
+        if (error.response) {
+            throw new Error(`Feedback Error: ${error.response.data.detail || error.message}`);
+        } else if (error.request) {
+            throw new Error('Cannot submit feedback. Backend not reachable.');
         } else {
             throw new Error(error.message);
         }
