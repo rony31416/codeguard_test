@@ -74,27 +74,42 @@ class CodeGuardPanel {
             }
             // Store current editor reference
             this._currentEditor = editor;
-            // Get selected text or entire document
-            const selection = editor.selection;
-            let code;
-            if (selection.isEmpty) {
-                // No selection, analyze entire file
-                code = editor.document.getText();
-            }
-            else {
-                // Analyze selection
-                code = editor.document.getText(selection);
-            }
+            // ALWAYS analyze the full file (ignore selection for consistency)
+            const code = editor.document.getText();
+            const fileName = editor.document.fileName.split(/[\\\/]/).pop() || 'file';
             if (!code.trim()) {
-                vscode.window.showWarningMessage('No code to analyze!');
+                vscode.window.showWarningMessage('File is empty!');
                 return;
+            }
+            // Get prompt from sidebar input
+            const prompt = data.prompt?.trim() || 'No prompt provided';
+            // Show what's being analyzed for debugging
+            console.log('[CodeGuard] Analyzing:', {
+                fileName,
+                codeLength: code.length,
+                promptLength: prompt.length,
+                prompt: prompt.substring(0, 50) + '...'
+            });
+            // Check if using production backend
+            const config = vscode.workspace.getConfiguration('codeguard');
+            const useLocal = config.get('useLocalBackend', false);
+            const apiUrl = config.get('apiUrl', '');
+            // Show cold start warning for production backend
+            if (!useLocal && apiUrl.includes('render.com')) {
+                vscode.window.showInformationMessage('Connecting to backend... First request may take 30-50 seconds (cold start)');
             }
             // Show loading state
             this.showLoading();
             // Analyze code
             const result = await (0, apiService_1.analyzeCode)({
-                prompt: data.prompt || 'No prompt provided',
+                prompt: prompt,
                 code: code
+            });
+            // Log result for debugging
+            console.log('[CodeGuard] Analysis complete:', {
+                analysisId: result.analysis_id,
+                bugsFound: result.bug_patterns.length,
+                severity: result.overall_severity
             });
             // Show results
             this.showAnalysis(result);
@@ -102,9 +117,9 @@ class CodeGuardPanel {
             this.addBugDecorations(editor, result.bug_patterns);
             // Send completion message
             this._view?.webview.postMessage({ command: 'analysisComplete' });
-            // Show notification
+            // Show notification with file name
             if (result.has_bugs) {
-                vscode.window.showWarningMessage(`CodeGuard: Found ${result.bug_patterns.length} bug pattern(s)`);
+                vscode.window.showWarningMessage(`CodeGuard: Found ${result.bug_patterns.length} bug pattern(s) in ${fileName}`);
             }
             else {
                 vscode.window.showInformationMessage('CodeGuard: No obvious bugs detected');
@@ -169,9 +184,50 @@ class CodeGuardPanel {
         editor.setDecorations(this._decorationType, decorations);
     }
     _getHtmlForWebview(webview) {
-        const htmlPath = vscode.Uri.joinPath(this._extensionUri, 'src', 'webview', 'webview.html');
+        // Try multiple paths for robustness
         const fs = require('fs');
-        return fs.readFileSync(htmlPath.fsPath, 'utf8');
+        const path = require('path');
+        // Path 1: Development mode (src folder exists)
+        let htmlPath = vscode.Uri.joinPath(this._extensionUri, 'src', 'webview', 'webview.html');
+        try {
+            if (fs.existsSync(htmlPath.fsPath)) {
+                return fs.readFileSync(htmlPath.fsPath, 'utf8');
+            }
+        }
+        catch (error) {
+            // Continue to next path
+        }
+        // Path 2: Production mode (out folder)
+        htmlPath = vscode.Uri.joinPath(this._extensionUri, 'out', 'webview', 'webview.html');
+        try {
+            if (fs.existsSync(htmlPath.fsPath)) {
+                return fs.readFileSync(htmlPath.fsPath, 'utf8');
+            }
+        }
+        catch (error) {
+            // Continue to next path
+        }
+        // Path 3: Root of extension (fallback)
+        htmlPath = vscode.Uri.joinPath(this._extensionUri, 'webview.html');
+        try {
+            if (fs.existsSync(htmlPath.fsPath)) {
+                return fs.readFileSync(htmlPath.fsPath, 'utf8');
+            }
+        }
+        catch (error) {
+            // Final fallback
+        }
+        // If all paths fail, return error message in HTML
+        return `<!DOCTYPE html>
+        <html>
+        <head><meta charset="UTF-8"></head>
+        <body style="padding: 20px; color: #fff;">
+            <h3>Error Loading CodeGuard Panel</h3>
+            <p>Could not find webview.html in any expected location.</p>
+            <p>Extension URI: ${this._extensionUri.fsPath}</p>
+            <p>Please try reloading VS Code or reinstalling the extension.</p>
+        </body>
+        </html>`;
     }
 }
 exports.CodeGuardPanel = CodeGuardPanel;

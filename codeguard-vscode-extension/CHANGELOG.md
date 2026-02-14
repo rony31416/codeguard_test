@@ -1,5 +1,52 @@
 # Change Log
 
+## [0.0.6] - 2025-02-15
+
+### 🔧 Critical Bug Fixes
+- **Fixed Sidebar Panel Loading Error**: Resolved "An error occurred while loading view" issue
+- **Fixed Inconsistent Analysis Results**: Both sidebar and top-right button now give identical results
+- **Fixed Selection Confusion**: Sidebar now always analyzes entire file (not selected text)
+
+### Changed
+- Sidebar button renamed to "Analyze Entire File" for clarity
+- Added helpful hint: "Will analyze the complete file in the active editor"
+- Improved HTML file loading with multiple fallback paths
+- Enhanced error handling with detailed error messages
+- Added debug logging for troubleshooting analysis issues
+
+### Improved
+- Better consistency between different analysis methods
+- Clearer user feedback with file names in notifications
+- Robust webview HTML loading (works in both dev and production)
+- Trimmed prompt input to avoid whitespace issues
+
+---
+
+## [0.0.5] - 2025-02-12
+
+### 🚀 Production Deployment
+- **Cloud Backend**: Now using production backend on Render.com
+- **Database**: Connected to Supabase PostgreSQL (cloud database)
+- **Production URL**: https://codeguard-backend-g7ka.onrender.com
+- No longer requires local backend for basic functionality
+
+### Added
+- `useLocalBackend` setting for switching between production and local backend
+- Cold start warning message for first-time requests
+- Extended timeout to 90 seconds for Render.com cold starts
+- Better error messages with connection details
+
+### Changed
+- Default API URL now points to production backend
+- Improved timeout handling for cloud deployments
+- Updated configuration descriptions with cold start information
+
+### Fixed
+- Better handling of slow initial requests
+- Improved error messages when backend is unavailable
+
+---
+
 ## [0.0.4] - 2025-02-11
 
 ### Added

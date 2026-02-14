@@ -310,8 +310,11 @@
                 placeholder="Enter the prompt used to generate the code (optional)..."
             ></textarea>
             <button class="analyze-btn" id="analyze-btn">
-                Analyze Code
+                Analyze Entire File
             </button>
+            <div style="font-size: 11px; color: var(--vscode-descriptionForeground); margin-top: 5px; text-align: center;">
+                Will analyze the complete file in the active editor
+            </div>
         </div>
         
         <!-- Results Section -->
@@ -365,12 +368,15 @@
         
         // Analyze button
         document.getElementById('analyze-btn').addEventListener('click', () => {
-            const editor = vscode.getState()?.hasActiveEditor;
-            const prompt = document.getElementById('prompt-input').value;
+            const promptInput = document.getElementById('prompt-input');
+            const prompt = promptInput.value.trim();
+            
+            // Debug: Log what's being sent
+            console.log('[CodeGuard Sidebar] Analyzing with prompt:', prompt || '(empty)');
             
             vscode.postMessage({
                 command: 'analyzeCode',
-                data: { prompt }
+                data: { prompt: prompt }
             });
         });
         

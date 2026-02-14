@@ -2,7 +2,7 @@
   "name": "codeguard-llm-bugs-classifier",
   "displayName": "CodeGuard LLM Bugs Classifier",
   "description": "LLM Bug Taxonomy Classifier & Analyzer for AI-generated code",
-  "version": "0.0.4",
+  "version": "0.0.6",
   "publisher": "RonyMajumder",
   "icon": "media/logo.ico",
   "engines": {
@@ -74,8 +74,13 @@
       "properties": {
         "codeguard.apiUrl": {
           "type": "string",
-          "default": "http://localhost:8000",
-          "description": "CodeGuard backend API URL"
+          "default": "https://codeguard-backend-g7ka.onrender.com",
+          "description": "CodeGuard backend API URL (Note: First request may take 30s due to cold start)"
+        },
+        "codeguard.useLocalBackend": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use local backend (http://localhost:8000) for development"
         },
         "codeguard.autoAnalyze": {
           "type": "boolean",

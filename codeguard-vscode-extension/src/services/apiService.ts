@@ -36,7 +36,8 @@ export async function analyzeCode(request: CodeAnalysisRequest): Promise<Analysi
     const config = vscode.workspace.getConfiguration('codeguard');
     const useLocal = config.get<boolean>('useLocalBackend', false);
     
-    const defaultUrl = 'https://codeguard-production.up.railway.app'; // Update with your hosted URL
+    // Production backend on Render.com
+    const defaultUrl = 'https://codeguard-backend-g7ka.onrender.com';
     const localUrl = 'http://localhost:8000';
     const apiUrl = useLocal ? localUrl : config.get<string>('apiUrl', defaultUrl);
 
@@ -48,7 +49,7 @@ export async function analyzeCode(request: CodeAnalysisRequest): Promise<Analysi
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                timeout: 60000
+                timeout: 90000 // 90 seconds for Render cold start
             }
         );
         return response.data;
@@ -67,7 +68,8 @@ export async function submitFeedback(request: FeedbackRequest): Promise<Feedback
     const config = vscode.workspace.getConfiguration('codeguard');
     const useLocal = config.get<boolean>('useLocalBackend', false);
     
-    const defaultUrl = 'https://codeguard-production.up.railway.app';
+    // Production backend on Render.com
+    const defaultUrl = 'https://codeguard-backend-g7ka.onrender.com';
     const localUrl = 'http://localhost:8000';
     const apiUrl = useLocal ? localUrl : config.get<string>('apiUrl', defaultUrl);
 
