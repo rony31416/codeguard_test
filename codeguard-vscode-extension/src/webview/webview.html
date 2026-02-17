@@ -498,7 +498,12 @@
                     
                 case 'showLoading':
                     document.getElementById('analysis-container').innerHTML = 
-                        '<div class="loading">Analyzing code...</div>';
+                        '<div class="loading">' +
+                        '<h3>🔍 Analyzing code...</h3>' +
+                        '<p style="margin-top: 10px; color: var(--vscode-descriptionForeground);">' +
+                        'First request may take 60-90 seconds (loading NLP models). Subsequent requests are faster.' +
+                        '</p>' +
+                        '</div>';
                     document.getElementById('feedback-toggle-btn').style.display = 'none';
                     document.getElementById('feedback-section').classList.remove('expanded');
                     document.getElementById('analyze-btn').disabled = true;

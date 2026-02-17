@@ -52,7 +52,7 @@ async function analyzeCode(request) {
             headers: {
                 'Content-Type': 'application/json',
             },
-            timeout: 90000 // 90 seconds for Render cold start
+            timeout: 600000 // 2 minutes for Render cold start + NLP model loading (60-90s)
         });
         return response.data;
     }
@@ -61,7 +61,11 @@ async function analyzeCode(request) {
             throw new Error(`API Error: ${error.response.data.detail || error.message}`);
         }
         else if (error.request) {
-            throw new Error('Cannot connect to CodeGuard backend. Make sure it\'s running on ' + apiUrl);
+            // Check if it's a timeout error
+            if (error.code === 'ECONNABORTED') {
+                throw new Error('Analysis timed out. First request may take 60-90s for model loading. Please try again.');
+            }
+            throw new Error(`Cannot connect to CodeGuard backend at ${apiUrl}. Make sure it's running.`);
         }
         else {
             throw new Error(error.message);
