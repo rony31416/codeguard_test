@@ -154,10 +154,12 @@ Write-Host "DATABASE_URL" -ForegroundColor Cyan
 Write-Host "  Value: sqlite:///./codeguard.db" -ForegroundColor White
 Write-Host ""
 Write-Host "OLLAMA_API_KEY" -ForegroundColor Cyan
-Write-Host "  Value: ****REDACTED_OLLAMA_KEY****" -ForegroundColor White
+Write-Host "  Value: ************************************" -ForegroundColor White
+Write-Host "  ⚠️  Replace with your actual Ollama API key" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "OPENROUTER_API_KEY" -ForegroundColor Cyan
-Write-Host "  Value: ****REDACTED_OPENROUTER_KEY****" -ForegroundColor White
+Write-Host "  Value: ************************************" -ForegroundColor White
+Write-Host "  ⚠️  Replace with your actual OpenRouter API key" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "DOCKER_TIMEOUT" -ForegroundColor Cyan
 Write-Host "  Value: 5" -ForegroundColor White

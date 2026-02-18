@@ -138,13 +138,13 @@ Value: sqlite:///./codeguard.db
 #### LLM API Keys (Primary: Ollama)
 ```
 Key: OLLAMA_API_KEY
-Value: *********************
+Value: ********************
 ```
 
 #### LLM API Keys (Fallback: OpenRouter)
 ```
 Key: OPENROUTER_API_KEY
-Value: ***********************************
+Value: **********************************
 ```
 
 #### Docker Configuration
