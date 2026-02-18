@@ -22,11 +22,7 @@ git push origin main
 Go to https://dashboard.render.com/ → `codeguard-backend-g7ka` → Environment
 
 ```
-OLLAMA_API_KEY=****REDACTED_OLLAMA_KEY****
-OPENROUTER_API_KEY=****REDACTED_OPENROUTER_KEY****
-DATABASE_URL=sqlite:///./codeguard.db
-DOCKER_TIMEOUT=5
-DOCKER_MEMORY_LIMIT=128m
+
 ```
 
 ### 3. Deploy
