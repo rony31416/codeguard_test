@@ -22,6 +22,7 @@ class StaticAnalyzer:
             "silly_mistakes": self._check_silly_mistakes(),
             "undefined_names": self._check_undefined_names(),
             "wrong_attribute": self._check_wrong_attribute_static(),
+            "wrong_input_type": self._check_wrong_input_type_static(),
             "prompt_biased": self._check_prompt_biased_code(),
             "npc": self._check_non_prompted_consideration(),
             "missing_corner_case": self._check_missing_corner_cases()
@@ -163,6 +164,28 @@ class StaticAnalyzer:
                     for target in node.targets:
                         if isinstance(target, ast.Name):
                             defined_names.add(target.id)
+                # FIX: Add loop variables as defined
+                elif isinstance(node, ast.For):
+                    if isinstance(node.target, ast.Name):
+                        defined_names.add(node.target.id)
+                    elif isinstance(node.target, ast.Tuple):
+                        for elt in node.target.elts:
+                            if isinstance(elt, ast.Name):
+                                defined_names.add(elt.id)
+                # FIX: Add with statement variables as defined
+                elif isinstance(node, ast.With):
+                    for item in node.items:
+                        if item.optional_vars and isinstance(item.optional_vars, ast.Name):
+                            defined_names.add(item.optional_vars.id)
+                # FIX: Add comprehension variables as defined
+                elif isinstance(node, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)):
+                    for generator in node.generators:
+                        if isinstance(generator.target, ast.Name):
+                            defined_names.add(generator.target.id)
+                        elif isinstance(generator.target, ast.Tuple):
+                            for elt in generator.target.elts:
+                                if isinstance(elt, ast.Name):
+                                    defined_names.add(elt.id)
                 elif isinstance(node, ast.Import):
                     for alias in node.names:
                         name = alias.asname if alias.asname else alias.name
@@ -232,6 +255,44 @@ class StaticAnalyzer:
                     "line": i + 1,
                     "description": "Code contains incomplete markers"
                 })
+            # Comments suggesting incomplete code
+            if '# missing' in line.lower() or '# stopped' in line.lower() or '# incomplete' in line.lower():
+                incomplete.append({
+                    "type": "incomplete_comment",
+                    "line": i + 1,
+                    "description": "Comment indicates incomplete code"
+                })
+        
+        # Pattern 4: Incomplete loop logic (e.g., while loop with only one counter modified)
+        if tree:
+            for node in ast.walk(tree):
+                if isinstance(node, ast.While):
+                    # Check if there are comparison variables in the test
+                    loop_vars = set()
+                    if isinstance(node.test, ast.Compare):
+                        if isinstance(node.test.left, ast.Name):
+                            loop_vars.add(node.test.left.id)
+                        for comp in node.test.comparators:
+                            if isinstance(comp, ast.Name):
+                                loop_vars.add(comp.id)
+                    
+                    # Check which variables are modified in the loop body
+                    modified_vars = set()
+                    for stmt in ast.walk(node):
+                        if isinstance(stmt, ast.AugAssign) and isinstance(stmt.target, ast.Name):
+                            modified_vars.add(stmt.target.id)
+                        elif isinstance(stmt, ast.Assign):
+                            for target in stmt.targets:
+                                if isinstance(target, ast.Name):
+                                    modified_vars.add(target.id)
+                    
+                    # If loop has 2+ comparison variables but only 1 is modified, it's likely incomplete
+                    if len(loop_vars) >= 2 and len(modified_vars) == 1 and modified_vars.issubset(loop_vars):
+                        incomplete.append({
+                            "type": "incomplete_loop",
+                            "line": node.lineno,
+                            "description": f"While loop modifies only {modified_vars.pop()} but compares multiple variables"
+                        })
         
         return {
             "found": len(incomplete) > 0,
@@ -336,24 +397,63 @@ class StaticAnalyzer:
             "details": wrong_attrs
         }
     
+    def _check_wrong_input_type_static(self) -> Dict[str, Any]:
+        """Detect wrong input types in function calls (static analysis)"""
+        wrong_types = []
+        
+        # Pattern: String literal passed to numeric functions
+        numeric_functions = {
+            'sqrt', 'pow', 'log', 'exp', 'sin', 'cos', 'tan',
+            'ceil', 'floor', 'round', 'abs', 'int', 'float'
+        }
+        
+        tree = self._try_parse_partial()
+        if tree:
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call):
+                    # Check if calling a numeric function
+                    func_name = None
+                    if isinstance(node.func, ast.Name):
+                        func_name = node.func.id
+                    elif isinstance(node.func, ast.Attribute):
+                        func_name = node.func.attr
+                    
+                    if func_name in numeric_functions:
+                        # Check if passing string arguments
+                        for arg in node.args:
+                            if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                                wrong_types.append({
+                                    "function": func_name,
+                                    "expected_type": "numeric",
+                                    "actual_type": "string",
+                                    "value": arg.value,
+                                    "line": node.lineno,
+                                    "description": f"Passing string '{arg.value}' to numeric function {func_name}()"
+                                })
+        
+        return {
+            "found": len(wrong_types) > 0,
+            "details": wrong_types
+        }
+    
     def _check_prompt_biased_code(self) -> Dict[str, Any]:
         """Detect hardcoded values from examples"""
         biased_code = []
         
         # Look for hardcoded specific values
         for i, line in enumerate(self.lines):
-            # Check for hardcoded strings in comparisons
+            # Check for hardcoded strings in comparisons (but skip common patterns)
             if re.search(r'==\s*["\']Example_', line):
                 biased_code.append({
                     "line": i + 1,
                     "description": "Hardcoded check for example-specific value"
                 })
             
-            # Check for hardcoded magic numbers in logic
-            if re.search(r'==\s*0(?!\.)|\s*=\s*0(?!\.)(?!x)', line) and 'if' in line:
+            # Check for hardcoded file names from examples (e.g., "orders_demo.csv")
+            if re.search(r'==\s*["\'][^"\']*(demo|example|sample|test)[^"\']*(\.(csv|txt|json))?["\']', line, re.IGNORECASE):
                 biased_code.append({
                     "line": i + 1,
-                    "description": "Hardcoded zero assignment in conditional logic"
+                    "description": "Hardcoded example filename in comparison"
                 })
         
         return {
@@ -387,34 +487,38 @@ class StaticAnalyzer:
         }
     
     def _check_missing_corner_cases(self) -> Dict[str, Any]:
-        """Detect missing null checks and edge case handling"""
+        """Detect missing critical edge case handling (very conservative)"""
         missing_cases = []
         
-        # Check if there's None checking for parameters
-        has_none_check = any('is None' in line or 'is not None' in line for line in self.lines)
-        
-        # Look for function definitions
+        # Only check for CRITICAL missing corner cases, not defensive programming
         tree = self._try_parse_partial()
-        if tree:
-            for node in ast.walk(tree):
-                if isinstance(node, ast.FunctionDef):
-                    # Check if function handles None inputs
-                    if node.args.args and not has_none_check:
-                        missing_cases.append({
-                            "function": node.name,
-                            "line": node.lineno,
-                            "description": f"Function '{node.name}' doesn't check for None inputs"
-                        })
         
-        # Check for division operations without zero checking
-        for i, line in enumerate(self.lines):
-            if '/' in line and 'if' not in line:
-                # Look for division without apparent zero check
-                if not any('!= 0' in l or '== 0' in l for l in self.lines[max(0, i-2):i+1]):
-                    missing_cases.append({
-                        "line": i + 1,
-                        "description": "Division operation without zero check"
-                    })
+        # Check for division operations without ANY zero/empty checking
+        if tree:
+            for i, line in enumerate(self.lines):
+                if '/' in line and 'if' not in line:
+                    # Check if there's ANY protection against division by zero
+                    # Look for checks in surrounding context (wider range)
+                    context_start = max(0, i-5)
+                    context_end = min(len(self.lines), i+3)
+                    context_lines = '\n'.join(self.lines[context_start:context_end])
+                    
+                    # Check for various forms of protection
+                    has_protection = any([
+                        '!= 0' in context_lines,
+                        '== 0' in context_lines,
+                        'if not' in context_lines,  # Empty check
+                        'len(' in context_lines and ('if' in context_lines or 'return' in context_lines),  # Length check
+                        'ZeroDivisionError' in context_lines,  # Exception handling
+                    ])
+                    
+                    if not has_protection:
+                        # Only report if it's clearly risky (dividing by len() without checks)
+                        if 'len(' in line or 'count' in line.lower():
+                            missing_cases.append({
+                                "line": i + 1,
+                                "description": "Division operation without zero check"
+                            })
         
         return {
             "found": len(missing_cases) > 0,

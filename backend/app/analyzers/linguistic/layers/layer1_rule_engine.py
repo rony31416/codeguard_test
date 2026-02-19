@@ -108,9 +108,24 @@ class RuleEngine:
         
         # Extract potential examples from prompt
         if prompt:
-            # Look for numbers in prompt
+            # Look for numbers in prompt, but exclude specifications like "return 0" or "default 0"
+            prompt_lower = prompt.lower()
+            
+            # Skip numbers that are part of return value specifications
+            specification_keywords = ['return', 'default', 'returns', 'output', 'result']
+            
             prompt_numbers = re.findall(r'\b\d+\b', prompt)
             for num in prompt_numbers:
+                # Check if this number is part of a specification (e.g., "return 0")
+                is_specification = False
+                for keyword in specification_keywords:
+                    if re.search(rf'{keyword}\s+.*{num}', prompt_lower) or re.search(rf'{num}\s+.*{keyword}', prompt_lower):
+                        is_specification = True
+                        break
+                
+                if is_specification:
+                    continue  # Skip numbers that are specifications, not examples
+                
                 # Check if this number appears in code (not in comments)
                 code_clean = re.sub(r'#.*$', '', code, flags=re.MULTILINE)
                 if re.search(rf'\b{num}\b', code_clean):
@@ -151,39 +166,69 @@ class RuleEngine:
         }
     
     def detect_missing_features(self, code: str, prompt: str) -> Dict[str, Any]:
-        """Detect potentially missing features based on prompt."""
+        """Detect potentially missing features based on prompt.
+        
+        CONSERVATIVE APPROACH: Only report features that are:
+        1. EXPLICITLY mentioned as requirements (not just action verbs)
+        2. Clearly separate concerns (e.g., "validate email AND send notification")
+        3. Not just different ways to express the same thing
+        
+        Skip detection if prompt is simple/minimal (< 10 words or single action).
+        """
         issues = []
         
-        # Extract action verbs from prompt
-        prompt_lower = prompt.lower()
-        mentioned_actions = []
+        # Skip for very simple prompts (likely don't have multiple explicit features)
+        prompt_words = prompt.split()
+        if len(prompt_words) < 10:
+            # Too short to have multiple distinct feature requests
+            return {
+                'found': False,
+                'issues': [],
+                'layer': 'rule_engine',
+                'confidence': 0
+            }
         
-        for verb in self.ACTION_VERBS:
-            if re.search(rf'\b{verb}\b', prompt_lower):
-                mentioned_actions.append(verb)
+        # Look for explicit feature lists (e.g., "do X and Y and Z")
+        # Patterns: "X and Y", "X, Y, and Z", "X; Y; Z"
+        explicit_features = re.findall(r'\band\b|,|;', prompt)
         
-        # Check if corresponding code exists
-        for action in mentioned_actions:
-            # Look for function definitions with this action
-            func_pattern = rf'def\s+\w*{action}\w*\s*\('
-            if not re.search(func_pattern, code, re.IGNORECASE):
-                issues.append({
-                    'type': 'missing_function',
-                    'action': action,
-                    'message': f'Prompt mentions "{action}" but no corresponding function found',
-                    'confidence': 0.7  # Lower confidence - might be implemented differently
-                })
+        if len(explicit_features) < 2:
+            # No clear list of multiple features
+            return {
+                'found': False,
+                'issues': [],
+                'layer': 'rule_engine',
+                'confidence': 0
+            }
+        
+        # If we get here, prompt has multiple clauses - analyze carefully
+        # This is very conservative - most simple prompts will return no missing features
         
         return {
-            'found': len(issues) > 0,
+            'found': False,  # Conservative: leave to LLM Layer 3 for complex cases
             'issues': issues,
             'layer': 'rule_engine',
-            'confidence': max([i['confidence'] for i in issues]) if issues else 0
+            'confidence': 0
         }
     
     def detect_misinterpretation(self, code: str, prompt: str) -> Dict[str, Any]:
         """Basic pattern-based misinterpretation detection."""
         issues = []
+        
+        # CRITICAL: Check for print vs return mismatch
+        # If prompt says "return" but code only prints
+        if re.search(r'\breturn(s|ing)?\b', prompt.lower()):
+            has_return = bool(re.search(r'return\s+(?!None)', code))
+            has_print = bool(re.search(r'print\s*\(', code))
+            
+            if has_print and not has_return:
+                issues.append({
+                    'type': 'print_vs_return',
+                    'expected': 'return',
+                    'actual': 'print',
+                    'message': 'Prompt asks to return but code uses print instead',
+                    'confidence': 0.85  # High confidence for this pattern
+                })
         
         # Check for return type mismatches (basic)
         if 'return a list' in prompt.lower() or 'return list' in prompt.lower():
@@ -209,8 +254,61 @@ class RuleEngine:
             'issues': issues,
             'layer': 'rule_engine',
             'confidence': max([i['confidence'] for i in issues]) if issues else 0
+        }    
+    def detect_silly_mistakes(self, code: str, prompt: str) -> Dict[str, Any]:
+        """Detect silly calculation/logic mistakes."""
+        issues = []
+        
+        # CRITICAL: Check for wrong exponent in square/cube operations
+        if re.search(r'\\bsquare\\b', prompt.lower()):
+            # Looking for square - should be ** 2
+            if re.search(r'\\*\\*\\s*3', code):  # Found ** 3 (cube)
+                issues.append({
+                    'type': 'wrong_exponent',
+                    'expected': '** 2',
+                    'actual': '** 3',
+                    'message': 'Code uses ** 3 (cube) when prompt asks for square (** 2)',
+                    'confidence': 0.95
+                })
+        
+        if re.search(r'\\bcube\\b', prompt.lower()):
+            # Looking for cube - should be ** 3
+            if re.search(r'\\*\\*\\s*2', code):  # Found ** 2 (square)
+                issues.append({
+                    'type': 'wrong_exponent',
+                    'expected': '** 3',
+                    'actual': '** 2',
+                    'message': 'Code uses ** 2 (square) when prompt asks for cube (** 3)',
+                    'confidence': 0.95
+                })
+        
+        # Check for wrong arithmetic operations
+        if re.search(r'\\b(sum|add|total)\\b', prompt.lower()):
+            # Expects addition but might use multiplication/subtraction
+            if re.search(r'=\\s*\\w+\\s*\\*\\s*\\w+', code) and not re.search(r'\\+', code):
+                issues.append({
+                    'type': 'wrong_operation',
+                    'expected': 'addition (+)',
+                    'message': 'Prompt asks for sum/addition but code uses multiplication',
+                    'confidence': 0.7
+                })
+        
+        if re.search(r'\\b(average|mean)\\b', prompt.lower()):
+            # Average needs division, check if missing
+            if not re.search(r'/|len\\(', code):
+                issues.append({
+                    'type': 'missing_division',
+                    'expected': 'division for average',
+                    'message': 'Average calculation missing division by count',
+                    'confidence': 0.8
+                })
+        
+        return {
+            'found': len(issues) > 0,
+            'issues': issues,
+            'layer': 'rule_engine',
+            'confidence': max([i['confidence'] for i in issues]) if issues else 0
         }
-
 
 if __name__ == "__main__":
     """Quick test"""
