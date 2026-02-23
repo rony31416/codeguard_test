@@ -49,7 +49,7 @@ export function activate(context: vscode.ExtensionContext) {
             
             await vscode.window.withProgress({
                 location: vscode.ProgressLocation.Notification,
-                title: "CodeGuard: Analyzing code...",
+                title: "CodeGuard: Analyzing code... (static + dynamic + linguistic — ~2 min)",
                 cancellable: false
             }, async (progress) => {
                 try {

@@ -14,6 +14,7 @@ interface AnalysisResponse {
     has_bugs: boolean;
     summary: string;
     created_at: string;
+    status?: string; // "processing" | "complete" | undefined
 }
 
 interface FeedbackRequest {
@@ -32,6 +33,46 @@ interface FeedbackResponse {
     created_at: string;
 }
 
+function sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Poll GET /api/analysis/{id} every 15 s until the backend marks the
+ * analysis as complete (linguistic background task finished).
+ * Gives up after ~5 minutes and returns whatever is in the DB at that point.
+ */
+async function pollForCompletion(
+    analysisId: number,
+    apiUrl: string,
+    onProgress?: (attempt: number) => void,
+): Promise<AnalysisResponse> {
+    const MAX_ATTEMPTS = 20;   // 20 × 15 s = 5 min
+    const INTERVAL_MS  = 15000;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        await sleep(INTERVAL_MS);
+        if (onProgress) { onProgress(attempt); }
+        try {
+            const resp = await axios.get<AnalysisResponse>(
+                `${apiUrl}/api/analysis/${analysisId}`,
+                { timeout: 30000 },
+            );
+            if (resp.data.status !== 'processing') {
+                return resp.data;
+            }
+        } catch {
+            // transient error — keep polling
+        }
+    }
+    // Last attempt — return whatever we have
+    const final = await axios.get<AnalysisResponse>(
+        `${apiUrl}/api/analysis/${analysisId}`,
+        { timeout: 30000 },
+    );
+    return final.data;
+}
+
 export async function analyzeCode(request: CodeAnalysisRequest): Promise<AnalysisResponse> {
     const config = vscode.workspace.getConfiguration('codeguard');
     const useLocal = config.get<boolean>('useLocalBackend', false);
@@ -46,22 +87,29 @@ export async function analyzeCode(request: CodeAnalysisRequest): Promise<Analysi
             `${apiUrl}/api/analyze`,
             request,
             {
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                timeout: 600000 // 2 minutes for Render cold start + NLP model loading (60-90s)
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 60000, // 60 s — backend now returns in <2 s
             }
         );
+
+        // Backend returns immediately with status="processing".
+        // Linguistic analysis runs in background; poll for the final result.
+        if (response.data.status === 'processing') {
+            return await pollForCompletion(response.data.analysis_id, apiUrl);
+        }
+
         return response.data;
     } catch (error: any) {
         if (error.response) {
             throw new Error(`API Error: ${error.response.data.detail || error.message}`);
         } else if (error.request) {
-            // Check if it's a timeout error
             if (error.code === 'ECONNABORTED') {
-                throw new Error('Analysis timed out. First request may take 60-90s for model loading. Please try again.');
+                throw new Error('Analysis timed out. The server may be starting up — please try again in 30 seconds.');
             }
-            throw new Error(`Cannot connect to CodeGuard backend at ${apiUrl}. Make sure it's running.`);
+            if (error.code === 'ECONNRESET' || error.code === 'ECONNREFUSED') {
+                throw new Error(`Cannot connect to CodeGuard backend. Make sure it's running on ${apiUrl}`);
+            }
+            throw new Error(`Cannot connect to CodeGuard backend. Make sure it's running on ${apiUrl}`);
         } else {
             throw new Error(error.message);
         }

@@ -1,10 +1,13 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
-import os , json , time
+import os, json, time, logging
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
-from .database import engine, get_db, Base
+from .database import engine, get_db, Base, SessionLocal
 from .schemas import CodeAnalysisRequest, AnalysisResponse, FeedbackRequest, BugPatternSchema, ExecutionLogSchema
 from .models import Analysis, BugPattern, Feedback, ExecutionLog, LinguisticAnalysis
 from .analyzers.static_analyzer import StaticAnalyzer
@@ -12,8 +15,18 @@ from .analyzers.dynamic_analyzer import DynamicAnalyzer
 from .analyzers.classifier import TaxonomyClassifier
 from .analyzers.explainer import ExplainabilityLayer
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger("codeguard")
+
 # Create tables
 Base.metadata.create_all(bind=engine)
+
+# Rate limiting
+limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI(
     title="CodeGuard API",
@@ -21,10 +34,23 @@ app = FastAPI(
     version="2.0.0"
 )
 
-# CORS - Allow VS Code extension to connect
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS - Restrict to VS Code extension and localhost in production
+allowed_origins = [
+    "http://localhost:3000",  # Frontend dev
+    "http://localhost:5173",  # Vite dev server
+    "vscode-webview://*",     # VS Code extension
+    "https://*.render.com",   # Render deployment
+]
+
+if os.getenv("ENVIRONMENT") == "development":
+    allowed_origins.append("*")  # Allow all in development only
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, restrict to your extension
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -33,8 +59,114 @@ app.add_middleware(
 # Docker configuration - Use environment variable or fallback to local
 DOCKER_HOST = os.getenv("DOCKER_HOST", "unix:///var/run/docker.sock")  # Local Docker by default
 
+# ------------------------------------------------------------------
+# In-memory set of analysis IDs whose linguistic analysis is still
+# running in the background.  Single-instance safe (Render free tier
+# runs one worker).  Cleared when background task completes.
+# ------------------------------------------------------------------
+_processing: set = set()
+
+
+def _run_linguistic_background(
+    analysis_id: int,
+    prompt: str,
+    code: str,
+    static_results: dict,
+    dynamic_results: dict,
+) -> None:
+    """Background task: run linguistic analysis and update DB with full results."""
+    db = SessionLocal()
+    try:
+        ling_start = time.time()
+        logger.info(f"[BG {analysis_id}] Starting linguistic analysis...")
+        from .analyzers.linguistic_analyzer import LinguisticAnalyzer
+        linguistic_analyzer = LinguisticAnalyzer(prompt, code)
+        linguistic_results = linguistic_analyzer.analyze()
+        ling_time = time.time() - ling_start
+        logger.info(f"[BG {analysis_id}] Linguistic analysis done in {ling_time:.1f}s")
+
+        # Re-classify with all 3 results
+        classifier = TaxonomyClassifier(static_results, dynamic_results, linguistic_results)
+        bug_patterns_list = classifier.classify()
+        overall_severity = classifier.get_overall_severity()
+        has_bugs = classifier.has_bugs()
+        summary = ExplainabilityLayer.generate_summary(bug_patterns_list)
+
+        # Update the Analysis record
+        analysis = db.query(Analysis).filter(Analysis.analysis_id == analysis_id).first()
+        if not analysis:
+            logger.error(f"[BG {analysis_id}] Analysis not found in DB")
+            return
+
+        analysis.overall_severity = overall_severity
+        analysis.has_bugs = has_bugs
+        analysis.summary = summary
+        analysis.confidence_score = (
+            sum(p.confidence for p in bug_patterns_list) / len(bug_patterns_list)
+            if bug_patterns_list else 0.0
+        )
+
+        # Replace preliminary bug patterns with the full set
+        db.query(BugPattern).filter(BugPattern.analysis_id == analysis_id).delete()
+        for bug_pattern in bug_patterns_list:
+            detection_stage = None
+            if bug_pattern.pattern_name in ['Syntax Error', 'Hallucinated Object', 'Incomplete Generation', 'Silly Mistake']:
+                detection_stage = 'static'
+            elif bug_pattern.pattern_name in ['Wrong Attribute', 'Wrong Input Type']:
+                detection_stage = 'dynamic'
+            else:
+                detection_stage = 'linguistic'
+            db.add(BugPattern(
+                analysis_id=analysis_id,
+                pattern_name=bug_pattern.pattern_name,
+                severity=bug_pattern.severity,
+                confidence=bug_pattern.confidence,
+                description=bug_pattern.description,
+                location=bug_pattern.location,
+                fix_suggestion=bug_pattern.fix_suggestion,
+                detection_stage=detection_stage,
+            ))
+
+        # Save linguistic analysis record
+        db.add(LinguisticAnalysis(
+            analysis_id=analysis_id,
+            prompt_intent=json.dumps(linguistic_results.get('missing_features', {})),
+            code_intent=json.dumps(linguistic_results.get('npc', {})),
+            intent_match_score=linguistic_results.get('intent_match_score', 0.0),
+            unprompted_features=json.dumps(linguistic_results.get('npc', {}).get('features', [])),
+            missing_features=json.dumps(linguistic_results.get('missing_features', {}).get('features', [])),
+            hardcoded_values=json.dumps(linguistic_results.get('prompt_biased', {}).get('values', [])),
+        ))
+
+        # Execution log for linguistic stage
+        db.add(ExecutionLog(
+            analysis_id=analysis_id,
+            stage="linguistic",
+            success=True,
+            error_message=None,
+            error_type=None,
+            traceback=None,
+            execution_time=round(ling_time, 3),
+        ))
+
+        db.commit()
+        logger.info(f"[BG {analysis_id}] Updated: {len(bug_patterns_list)} patterns, severity={overall_severity}")
+
+    except Exception as e:
+        import traceback as _tb
+        logger.error(f"[BG {analysis_id}] Linguistic task failed: {e}\n{_tb.format_exc()}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+    finally:
+        _processing.discard(analysis_id)
+        db.close()
+
 @app.get("/")
-async def root():
+@limiter.limit("100/minute")
+async def root(request: Request):
+    logger.info("Root endpoint accessed")
     return {
         "message": "CodeGuard API is running",
         "version": "2.0.0",
@@ -46,10 +178,12 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint for Render"""
+    logger.info("Health check endpoint accessed")
     return {"status": "healthy", "backend": "render", "database": "supabase"}
 
 @app.post("/api/analyze", response_model=AnalysisResponse)
-def analyze_code(request: CodeAnalysisRequest, db: Session = Depends(get_db)):
+@limiter.limit("30/minute")  # Rate limit: 30 requests per minute per IP
+def analyze_code(analysis_request: CodeAnalysisRequest, request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """
     Main analysis endpoint: Three-Stage Hybrid Detection
     
@@ -63,13 +197,13 @@ def analyze_code(request: CodeAnalysisRequest, db: Session = Depends(get_db)):
     linguistic_analyzer = None
     
     try:
-        print(f"Starting analysis - Prompt: {request.prompt[:50]}..., Code length: {len(request.code)}")
+        logger.info(f"Starting analysis - Prompt: {analysis_request.prompt[:50]}..., Code length: {len(analysis_request.code)}")
         
         # ===== STAGE 1: Static Analysis =====
-        print("Stage 1: Running static analysis...")
+        logger.info("Stage 1: Running static analysis...")
         static_start = time.time()
         try:
-            static_analyzer = StaticAnalyzer(request.code)
+            static_analyzer = StaticAnalyzer(analysis_request.code)
             static_results = static_analyzer.analyze()
             static_time = time.time() - static_start
             
@@ -80,7 +214,7 @@ def analyze_code(request: CodeAnalysisRequest, db: Session = Depends(get_db)):
                 "error_message": None,
                 "error_type": None
             })
-            print(f"✓ Static analysis completed in {static_time:.3f}s")
+            logger.info(f"Static analysis completed in {static_time:.3f}s")
         except Exception as e:
             static_results = {}
             static_time = time.time() - static_start
@@ -91,13 +225,13 @@ def analyze_code(request: CodeAnalysisRequest, db: Session = Depends(get_db)):
                 "error_message": str(e),
                 "error_type": type(e).__name__
             })
-            print(f"✗ Static analysis failed: {str(e)}")
+            logger.error(f"Static analysis failed: {str(e)}")
         
         # ===== STAGE 2: Dynamic Analysis =====
-        print("Stage 2: Running dynamic analysis (Docker sandbox)...")
+        logger.info("Stage 2: Running dynamic analysis (Docker sandbox)...")
         dynamic_start = time.time()
         try:
-            dynamic_analyzer = DynamicAnalyzer(request.code)
+            dynamic_analyzer = DynamicAnalyzer(analysis_request.code)
             dynamic_results = dynamic_analyzer.analyze()
             dynamic_time = time.time() - dynamic_start
             
@@ -108,7 +242,7 @@ def analyze_code(request: CodeAnalysisRequest, db: Session = Depends(get_db)):
                 "error_message": dynamic_results.get("error_message") if dynamic_results.get("execution_error") else None,
                 "error_type": None
             })
-            print(f"✓ Dynamic analysis completed in {dynamic_time:.3f}s")
+            logger.info(f"Dynamic analysis completed in {dynamic_time:.3f}s")
         except Exception as e:
             dynamic_results = {
                 "execution_success": False,
@@ -125,64 +259,22 @@ def analyze_code(request: CodeAnalysisRequest, db: Session = Depends(get_db)):
                 "error_message": str(e),
                 "error_type": type(e).__name__
             })
-            print(f"✗ Dynamic analysis failed: {str(e)}")
+            logger.error(f"Dynamic analysis failed: {str(e)}")
         
-        # ===== STAGE 3: Linguistic Analysis =====
-        print("Stage 3: Running linguistic analysis (prompt-code comparison)...")
-        linguistic_start = time.time()
-        linguistic_results = {}
-        try:
-            from .analyzers.linguistic_analyzer import LinguisticAnalyzer
-            linguistic_analyzer = LinguisticAnalyzer(request.prompt, request.code)
-            linguistic_results = linguistic_analyzer.analyze()
-            linguistic_time = time.time() - linguistic_start
-            
-            execution_logs.append({
-                "stage": "linguistic",
-                "success": True,
-                "execution_time": round(linguistic_time, 3),
-                "error_message": None,
-                "error_type": None
-            })
-            print(f"✓ Linguistic analysis completed in {linguistic_time:.3f}s")
-        except ImportError:
-            # Linguistic analyzer not implemented yet
-            linguistic_results = {
-                "npc": {"found": False, "features": []},
-                "prompt_biased": {"found": False, "values": []},
-                "missing_features": {"found": False, "features": []},
-                "misinterpretation": {"found": False, "score": 0.0, "reasons": []},
-                "intent_match_score": 0.0
-            }
-            linguistic_time = time.time() - linguistic_start
-            execution_logs.append({
-                "stage": "linguistic",
-                "success": False,
-                "execution_time": round(linguistic_time, 3),
-                "error_message": "Linguistic analyzer not implemented yet",
-                "error_type": "NotImplementedError"
-            })
-            print("⚠ Linguistic analysis not implemented - using fallback")
-        except Exception as e:
-            linguistic_results = {
-                "npc": {"found": False, "features": []},
-                "prompt_biased": {"found": False, "values": []},
-                "missing_features": {"found": False, "features": []},
-                "misinterpretation": {"found": False, "score": 0.0, "reasons": []},
-                "intent_match_score": 0.0
-            }
-            linguistic_time = time.time() - linguistic_start
-            execution_logs.append({
-                "stage": "linguistic",
-                "success": False,
-                "execution_time": round(linguistic_time, 3),
-                "error_message": str(e),
-                "error_type": type(e).__name__
-            })
-            print(f"✗ Linguistic analysis failed: {str(e)}")
+        # ===== STAGE 3: Linguistic Analysis (deferred to background task) =====
+        # Runs AFTER the HTTP response is sent to avoid Render proxy timeout.
+        # The extension polls GET /api/analysis/{id} for the final result.
+        linguistic_analyzer = None
+        linguistic_results = {
+            "npc": {"found": False, "features": []},
+            "prompt_biased": {"found": False, "values": []},
+            "missing_features": {"found": False, "features": []},
+            "misinterpretation": {"found": False, "score": 0.0, "reasons": []},
+            "intent_match_score": 0.0,
+        }
         
         # ===== STAGE 4: Classification =====
-        print("Stage 4: Classifying bug patterns...")
+        logger.info("Stage 4: Classifying bug patterns...")
         classifier_start = time.time()
         try:
             classifier = TaxonomyClassifier(static_results, dynamic_results, linguistic_results)
@@ -196,7 +288,7 @@ def analyze_code(request: CodeAnalysisRequest, db: Session = Depends(get_db)):
                 "error_message": None,
                 "error_type": None
             })
-            print(f"✓ Classification completed: {len(bug_patterns_list)} patterns detected")
+            logger.info(f"Classification completed: {len(bug_patterns_list)} patterns detected")
         except Exception as e:
             classifier_time = time.time() - classifier_start
             execution_logs.append({
@@ -213,13 +305,13 @@ def analyze_code(request: CodeAnalysisRequest, db: Session = Depends(get_db)):
         overall_severity = classifier.get_overall_severity()
         has_bugs = classifier.has_bugs()
         
-        print(f"Overall severity: {overall_severity}/10, Has bugs: {has_bugs}")
+        logger.info(f"Overall severity: {overall_severity}/10, Has bugs: {has_bugs}")
         
         # ===== Save to Database =====
-        print("Saving analysis to database...")
+        logger.info("Saving analysis to database...")
         analysis = Analysis(
-            prompt=request.prompt,
-            code=request.code,
+            prompt=analysis_request.prompt,
+            code=analysis_request.code,
             language='python',
             overall_severity=overall_severity,
             has_bugs=has_bugs,
@@ -283,9 +375,22 @@ def analyze_code(request: CodeAnalysisRequest, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(analysis)
         
-        print(f"✓ Analysis saved with ID: {analysis.analysis_id}")
-        
-        # ===== Prepare Response =====
+        logger.info(f"Analysis saved with ID: {analysis.analysis_id} (linguistic pending)")
+
+        # Schedule linguistic analysis to run AFTER the response is sent.
+        # background_tasks fires after the HTTP response, so Render's proxy
+        # timeout is no longer an issue.
+        _processing.add(analysis.analysis_id)
+        background_tasks.add_task(
+            _run_linguistic_background,
+            analysis.analysis_id,
+            analysis_request.prompt,
+            analysis_request.code,
+            static_results,
+            dynamic_results,
+        )
+
+        # ===== Prepare Response (preliminary — linguistic results pending) =====
         return AnalysisResponse(
             analysis_id=analysis.analysis_id,
             bug_patterns=[BugPatternSchema.from_orm(bp) for bp in analysis.bug_patterns],
@@ -293,7 +398,8 @@ def analyze_code(request: CodeAnalysisRequest, db: Session = Depends(get_db)):
             overall_severity=overall_severity,
             has_bugs=has_bugs,
             summary=summary,
-            created_at=analysis.created_at
+            created_at=analysis.created_at,
+            status="processing",
         )
         
     except HTTPException:
@@ -301,7 +407,7 @@ def analyze_code(request: CodeAnalysisRequest, db: Session = Depends(get_db)):
     except Exception as e:
         import traceback
         error_trace = traceback.format_exc()
-        print(f"ERROR: {error_trace}")
+        logger.error(f"ERROR: {error_trace}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 
@@ -361,19 +467,23 @@ def get_history(limit: int = 20, db: Session = Depends(get_db)):
 @app.get("/api/analysis/{analysis_id}")
 def get_analysis(analysis_id: int, db: Session = Depends(get_db)):
     """
-    Get specific analysis details
-    
+    Get specific analysis details — also used by the VS Code extension to
+    poll for the final result after the initial POST returns "processing".
+
     Returns complete analysis including:
     - Bug patterns
     - Execution logs
     - Linguistic analysis results
     - User feedback
+    - status: "processing" | "complete"
     """
     analysis = db.query(Analysis).filter(Analysis.analysis_id == analysis_id).first()
     if not analysis:
         raise HTTPException(status_code=404, detail="Analysis not found")
-    
-    return {
+
+    status = "processing" if analysis_id in _processing else "complete"
+
+    return {"status": status,
         "analysis_id": analysis.analysis_id,
         "prompt": analysis.prompt,
         "code": analysis.code,
@@ -411,7 +521,7 @@ def get_stats(db: Session = Depends(get_db)):
     - Detection stage effectiveness
     - User feedback accuracy metrics
     """
-    from sqlalchemy import func
+    from sqlalchemy import func, Integer
     
     # Basic counts
     total_analyses = db.query(Analysis).count()
