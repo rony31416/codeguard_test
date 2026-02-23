@@ -1,8 +1,12 @@
 # Change Log
 
-## [0.0.7] - 2026-02-23
+## [0.0.7] - 2026-02-23 (re-release)
 
-### 🚀 Major Fix: Analysis No Longer Times Out
+### � Critical Fix: Side Panel Not Showing
+- **Root cause**: Extension was compiled with plain `tsc` and packaged with `--no-dependencies`, so `require('axios')` failed at runtime because `node_modules` was never included. Extension activation crashed silently — the webview panel was never registered, so clicking the CodeGuard icon showed nothing.
+- **Solution**: Replaced `tsc` with `esbuild` bundling. `axios` and all other dependencies are now fully embedded inside `out/extension.js` (a single 440 KB bundle). No `node_modules` folder needed.
+
+### �🚀 Major Fix: Analysis No Longer Times Out
 - **Root cause fixed**: Linguistic analysis (LLM stage) takes 110–120 s, exceeding Render's 60 s proxy timeout. The HTTP response was killed before reaching the extension, wrongly showing "Cannot connect to backend."
 - **Solution**: Backend now returns a preliminary result (static + dynamic bugs) in **<2 seconds**. Linguistic analysis runs as a background task. Extension automatically polls `GET /api/analysis/{id}` every 15 s until complete.
 
