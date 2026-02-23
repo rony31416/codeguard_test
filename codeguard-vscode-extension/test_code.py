@@ -1,34 +1,15 @@
-def analyze_orders(file_name):                      # Misinterpretation (median vs mean)
-    # Syntax Error: missing colon on next line
-    if file_name == "orders_demo.csv"              # Prompt-Biased Code (hardcoded example)
-        print("Processing orders...")              # Misinterpretation (prints instead of returns)
+def sort_and_filter(names):
+    # Syntax Error: Missing colon
+    if not names
+        return []
 
-    # Hallucinated Object: undefined helper
-    data = OrderFileReader().read_csv(file_name)   # OrderFileReader not defined/imported
-
-    amounts = []
-    for row in data:
-        amount = row.amount                        # Wrong Attribute (dict-like row)
-        amounts.append(amount)
-
-    amounts.sort()                                 # NPC (unrequested sorting)
-
-    # Incomplete Generation: truncated logic
-    total = 0
-    for a in amounts:
-        total += a
-
-    avg = total / len(amounts)                     # Missing Corner Case (empty list)
-    median_value = avg                             # Misinterpretation (uses mean as “median”)
-
-    # Wrong Input Type: pass string to numeric operation
-    import math
-    sqrt_median = math.sqrt("16")                  # Wrong Input Type
-
-    # Silly Mistake: redundant conditional
-    if median_value > 0:
-        return ["done"]                            # returns list of strings, not floats
-    else:
-        return ["done"]                            # Silly Mistake (identical branches)
-
-
+    # NPC: Unrequested filtering of 'admin' users
+    names = [n for n in names if n != "admin"]
+    
+    # Hallucinated Object: 'Sorter' class doesn't exist
+    sorter = Sorter()
+    sorted_names = sorter.sort_alphabetically(names)
+    
+    # Incomplete Generation: Logic stops abruptly
+    top_3 = sorted_names[0:3]
+    # ... missing return statement ...
