@@ -1,0 +1,351 @@
+{
+  "test_set_id": 9,
+  "name": "Regression & Stress Testing",
+  "total_cases": 16,
+  "correct": 10,
+  "errors": 0,
+  "accuracy": 62.5,
+  "total_execution_time": 190.8105525970459,
+  "results": [
+    {
+      "test_case_id": 1,
+      "name": "Mixed - Syntax + Incomplete",
+      "expected": "bug",
+      "predicted": "bug",
+      "correct": true,
+      "bug_count": 3,
+      "bugs_found": [
+        {
+          "pattern_name": "Syntax Error",
+          "severity": 9,
+          "description": "The code contains a syntax error at line 2: expected ':' (<unknown>, line 2)"
+        },
+        {
+          "pattern_name": "Incomplete Generation",
+          "severity": 7,
+          "description": "Code generation appears incomplete. Issues: Code contains incomplete markers. The LLM may have been "
+        },
+        {
+          "pattern_name": "Non-Prompted Consideration (NPC)",
+          "severity": 5,
+          "description": "The code includes features that weren't requested. Detected 2 unrequested addition(s): Method defini"
+        }
+      ],
+      "severity_score": 9,
+      "expected_bug_type": "mixed_bugs",
+      "execution_time": 13.03251576423645,
+      "analysis_id": 482
+    },
+    {
+      "test_case_id": 2,
+      "name": "Missing Corner Case - Bad Slice",
+      "expected": "bug",
+      "predicted": "clean",
+      "correct": false,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "No Bugs Detected",
+          "severity": 0,
+          "description": "Static and dynamic analysis did not detect any obvious bugs. However, logic errors or missing corner"
+        }
+      ],
+      "severity_score": 0,
+      "expected_bug_type": "missing_corner_case",
+      "execution_time": 7.36885929107666,
+      "analysis_id": 483
+    },
+    {
+      "test_case_id": 3,
+      "name": "Wrong Attribute - Tuple Access",
+      "expected": "bug",
+      "predicted": "bug",
+      "correct": true,
+      "bug_count": 2,
+      "bugs_found": [
+        {
+          "pattern_name": "Syntax Error",
+          "severity": 9,
+          "description": "The code contains a syntax error at line 3: invalid syntax (<unknown>, line 3)"
+        },
+        {
+          "pattern_name": "Prompt-Biased Code",
+          "severity": 6,
+          "description": "The code contains hardcoded logic based on specific examples from the prompt rather than general sol"
+        }
+      ],
+      "severity_score": 9,
+      "expected_bug_type": "wrong_attribute",
+      "execution_time": 10.71362566947937,
+      "analysis_id": 484
+    },
+    {
+      "test_case_id": 4,
+      "name": "Silly Mistake - Dict Overwrite",
+      "expected": "bug",
+      "predicted": "clean",
+      "correct": false,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "No Bugs Detected",
+          "severity": 0,
+          "description": "Static and dynamic analysis did not detect any obvious bugs. However, logic errors or missing corner"
+        }
+      ],
+      "severity_score": 0,
+      "expected_bug_type": "silly_mistake",
+      "execution_time": 33.89171767234802,
+      "analysis_id": 485
+    },
+    {
+      "test_case_id": 5,
+      "name": "NPC - Unrequested Dependency",
+      "expected": "bug",
+      "predicted": "bug",
+      "correct": true,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "Non-Prompted Consideration (NPC)",
+          "severity": 5,
+          "description": "The code includes features that weren't requested. Detected 1 unrequested addition(s): unrequested i"
+        }
+      ],
+      "severity_score": 5,
+      "expected_bug_type": "npc",
+      "execution_time": 8.978259325027466,
+      "analysis_id": 486
+    },
+    {
+      "test_case_id": 6,
+      "name": "Hallucinated Object - Fake Decorator",
+      "expected": "bug",
+      "predicted": "bug",
+      "correct": true,
+      "bug_count": 3,
+      "bugs_found": [
+        {
+          "pattern_name": "Hallucinated Object",
+          "severity": 8,
+          "description": "The code references undefined objects that may not exist: fake_decorator. LLMs sometimes invent func"
+        },
+        {
+          "pattern_name": "Incomplete Generation",
+          "severity": 7,
+          "description": "Code generation appears incomplete. Issues: Function 'func' contains only 'pass'. The LLM may have b"
+        },
+        {
+          "pattern_name": "Missing Features",
+          "severity": 6,
+          "description": "The code is missing features that were requested in the prompt. Detected 1 missing feature(s): Imple"
+        }
+      ],
+      "severity_score": 8,
+      "expected_bug_type": "hallucinated_object",
+      "execution_time": 11.74313473701477,
+      "analysis_id": 487
+    },
+    {
+      "test_case_id": 7,
+      "name": "Prompt Bias - Specific Path",
+      "expected": "bug",
+      "predicted": "bug",
+      "correct": true,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "Prompt-Biased Code",
+          "severity": 6,
+          "description": "The code contains hardcoded logic based on specific examples from the prompt rather than general sol"
+        }
+      ],
+      "severity_score": 6,
+      "expected_bug_type": "prompt_bias",
+      "execution_time": 7.859118938446045,
+      "analysis_id": 488
+    },
+    {
+      "test_case_id": 8,
+      "name": "Wrong Input Type - Bitwise on Float",
+      "expected": "bug",
+      "predicted": "bug",
+      "correct": true,
+      "bug_count": 3,
+      "bugs_found": [
+        {
+          "pattern_name": "Non-Prompted Consideration (NPC)",
+          "severity": 5,
+          "description": "The code includes features that weren't requested. Detected 3 unrequested addition(s): ignores the f"
+        },
+        {
+          "pattern_name": "Prompt-Biased Code",
+          "severity": 6,
+          "description": "The code contains hardcoded logic based on specific examples from the prompt rather than general sol"
+        },
+        {
+          "pattern_name": "Missing Features",
+          "severity": 6,
+          "description": "The code is missing features that were requested in the prompt. Detected 1 missing feature(s): Compu"
+        }
+      ],
+      "severity_score": 6,
+      "expected_bug_type": "wrong_input_type",
+      "execution_time": 13.496400594711304,
+      "analysis_id": 489
+    },
+    {
+      "test_case_id": 9,
+      "name": "Clean - Complex List Comp",
+      "expected": "clean",
+      "predicted": "clean",
+      "correct": true,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "No Bugs Detected",
+          "severity": 0,
+          "description": "Static and dynamic analysis did not detect any obvious bugs. However, logic errors or missing corner"
+        }
+      ],
+      "severity_score": 0,
+      "expected_bug_type": null,
+      "execution_time": 8.365646839141846,
+      "analysis_id": 490
+    },
+    {
+      "test_case_id": 10,
+      "name": "Clean - Generator Send",
+      "expected": "clean",
+      "predicted": "bug",
+      "correct": false,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "Missing Features",
+          "severity": 6,
+          "description": "The code is missing features that were requested in the prompt. Detected 0 missing feature(s): reque"
+        }
+      ],
+      "severity_score": 6,
+      "expected_bug_type": null,
+      "execution_time": 14.068966627120972,
+      "analysis_id": 491
+    },
+    {
+      "test_case_id": 11,
+      "name": "Clean - Metaclass",
+      "expected": "clean",
+      "predicted": "bug",
+      "correct": false,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "Prompt-Biased Code",
+          "severity": 6,
+          "description": "The code contains hardcoded logic based on specific examples from the prompt rather than general sol"
+        }
+      ],
+      "severity_score": 6,
+      "expected_bug_type": null,
+      "execution_time": 9.667319059371948,
+      "analysis_id": 492
+    },
+    {
+      "test_case_id": 12,
+      "name": "Clean - Dynamic Attribute",
+      "expected": "clean",
+      "predicted": "clean",
+      "correct": true,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "No Bugs Detected",
+          "severity": 0,
+          "description": "Static and dynamic analysis did not detect any obvious bugs. However, logic errors or missing corner"
+        }
+      ],
+      "severity_score": 0,
+      "expected_bug_type": null,
+      "execution_time": 9.421852111816406,
+      "analysis_id": 493
+    },
+    {
+      "test_case_id": 13,
+      "name": "Clean - Walrus Operator",
+      "expected": "clean",
+      "predicted": "bug",
+      "correct": false,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "Hallucinated Object",
+          "severity": 8,
+          "description": "The code references undefined objects that may not exist: n. LLMs sometimes invent functions, classe"
+        }
+      ],
+      "severity_score": 8,
+      "expected_bug_type": null,
+      "execution_time": 10.188679218292236,
+      "analysis_id": 494
+    },
+    {
+      "test_case_id": 14,
+      "name": "Clean - Type Alias",
+      "expected": "clean",
+      "predicted": "clean",
+      "correct": true,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "No Bugs Detected",
+          "severity": 0,
+          "description": "Static and dynamic analysis did not detect any obvious bugs. However, logic errors or missing corner"
+        }
+      ],
+      "severity_score": 0,
+      "expected_bug_type": null,
+      "execution_time": 8.269277811050415,
+      "analysis_id": 495
+    },
+    {
+      "test_case_id": 15,
+      "name": "Clean - Match Case",
+      "expected": "clean",
+      "predicted": "clean",
+      "correct": true,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "No Bugs Detected",
+          "severity": 0,
+          "description": "Static and dynamic analysis did not detect any obvious bugs. However, logic errors or missing corner"
+        }
+      ],
+      "severity_score": 0,
+      "expected_bug_type": null,
+      "execution_time": 11.562849283218384,
+      "analysis_id": 496
+    },
+    {
+      "test_case_id": 16,
+      "name": "Clean - Async Context",
+      "expected": "clean",
+      "predicted": "bug",
+      "correct": false,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "Hallucinated Object",
+          "severity": 8,
+          "description": "The code references undefined objects that may not exist: Lock. LLMs sometimes invent functions, cla"
+        }
+      ],
+      "severity_score": 8,
+      "expected_bug_type": null,
+      "execution_time": 12.182329654693604,
+      "analysis_id": 497
+    }
+  ],
+  "timestamp": "2026-02-23T03:21:26.694110"
+}

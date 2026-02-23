@@ -40,6 +40,36 @@ exports.analyzeCode = analyzeCode;
 exports.submitFeedback = submitFeedback;
 const axios_1 = __importDefault(require("axios"));
 const vscode = __importStar(require("vscode"));
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+/**
+ * Poll GET /api/analysis/{id} every 15 s until the backend marks the
+ * analysis as complete (linguistic background task finished).
+ * Gives up after ~5 minutes and returns whatever is in the DB at that point.
+ */
+async function pollForCompletion(analysisId, apiUrl, onProgress) {
+    const MAX_ATTEMPTS = 20; // 20 × 15 s = 5 min
+    const INTERVAL_MS = 15000;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        await sleep(INTERVAL_MS);
+        if (onProgress) {
+            onProgress(attempt);
+        }
+        try {
+            const resp = await axios_1.default.get(`${apiUrl}/api/analysis/${analysisId}`, { timeout: 30000 });
+            if (resp.data.status !== 'processing') {
+                return resp.data;
+            }
+        }
+        catch {
+            // transient error — keep polling
+        }
+    }
+    // Last attempt — return whatever we have
+    const final = await axios_1.default.get(`${apiUrl}/api/analysis/${analysisId}`, { timeout: 30000 });
+    return final.data;
+}
 async function analyzeCode(request) {
     const config = vscode.workspace.getConfiguration('codeguard');
     const useLocal = config.get('useLocalBackend', false);
@@ -49,11 +79,14 @@ async function analyzeCode(request) {
     const apiUrl = useLocal ? localUrl : config.get('apiUrl', defaultUrl);
     try {
         const response = await axios_1.default.post(`${apiUrl}/api/analyze`, request, {
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            timeout: 600000 // 2 minutes for Render cold start + NLP model loading (60-90s)
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 60000, // 60 s — backend now returns in <2 s
         });
+        // Backend returns immediately with status="processing".
+        // Linguistic analysis runs in background; poll for the final result.
+        if (response.data.status === 'processing') {
+            return await pollForCompletion(response.data.analysis_id, apiUrl);
+        }
         return response.data;
     }
     catch (error) {
@@ -61,11 +94,13 @@ async function analyzeCode(request) {
             throw new Error(`API Error: ${error.response.data.detail || error.message}`);
         }
         else if (error.request) {
-            // Check if it's a timeout error
             if (error.code === 'ECONNABORTED') {
-                throw new Error('Analysis timed out. First request may take 60-90s for model loading. Please try again.');
+                throw new Error('Analysis timed out. The server may be starting up — please try again in 30 seconds.');
             }
-            throw new Error(`Cannot connect to CodeGuard backend at ${apiUrl}. Make sure it's running.`);
+            if (error.code === 'ECONNRESET' || error.code === 'ECONNREFUSED') {
+                throw new Error(`Cannot connect to CodeGuard backend. Make sure it's running on ${apiUrl}`);
+            }
+            throw new Error(`Cannot connect to CodeGuard backend. Make sure it's running on ${apiUrl}`);
         }
         else {
             throw new Error(error.message);

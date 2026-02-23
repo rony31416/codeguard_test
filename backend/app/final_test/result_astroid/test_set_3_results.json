@@ -1,0 +1,321 @@
+{
+  "test_set_id": 3,
+  "name": "Real-World Code Scenarios",
+  "total_cases": 16,
+  "correct": 13,
+  "errors": 0,
+  "accuracy": 81.25,
+  "total_execution_time": 209.93881559371948,
+  "results": [
+    {
+      "test_case_id": 33,
+      "name": "Bug - Infinite Loop Missing Break",
+      "expected": "bug",
+      "predicted": "bug",
+      "correct": true,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "Incomplete Generation",
+          "severity": 7,
+          "description": "Code generation appears incomplete. Issues: Comment indicates incomplete code. The LLM may have been"
+        }
+      ],
+      "severity_score": 7,
+      "expected_bug_type": "incomplete_generation",
+      "execution_time": 11.999977111816406,
+      "analysis_id": 386
+    },
+    {
+      "test_case_id": 34,
+      "name": "Bug - Off-by-One Error",
+      "expected": "bug",
+      "predicted": "bug",
+      "correct": true,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "Missing Features",
+          "severity": 6,
+          "description": "The code is missing features that were requested in the prompt. Detected 1 missing feature(s): Retur"
+        }
+      ],
+      "severity_score": 6,
+      "expected_bug_type": "silly_mistake",
+      "execution_time": 10.660138845443726,
+      "analysis_id": 387
+    },
+    {
+      "test_case_id": 35,
+      "name": "Bug - Mutable Default Argument",
+      "expected": "bug",
+      "predicted": "clean",
+      "correct": false,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "No Bugs Detected",
+          "severity": 0,
+          "description": "Static and dynamic analysis did not detect any obvious bugs. However, logic errors or missing corner"
+        }
+      ],
+      "severity_score": 0,
+      "expected_bug_type": "silly_mistake",
+      "execution_time": 10.076058149337769,
+      "analysis_id": 388
+    },
+    {
+      "test_case_id": 36,
+      "name": "Bug - Missing Return Statement",
+      "expected": "bug",
+      "predicted": "bug",
+      "correct": true,
+      "bug_count": 2,
+      "bugs_found": [
+        {
+          "pattern_name": "Incomplete Generation",
+          "severity": 7,
+          "description": "Code generation appears incomplete. Issues: Comment indicates incomplete code. The LLM may have been"
+        },
+        {
+          "pattern_name": "Missing Features",
+          "severity": 6,
+          "description": "The code is missing features that were requested in the prompt. Detected 1 missing feature(s): missi"
+        }
+      ],
+      "severity_score": 7,
+      "expected_bug_type": "incomplete_generation",
+      "execution_time": 9.596491813659668,
+      "analysis_id": 389
+    },
+    {
+      "test_case_id": 37,
+      "name": "Bug - Type Comparison Error",
+      "expected": "bug",
+      "predicted": "bug",
+      "correct": true,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "Missing Features",
+          "severity": 6,
+          "description": "The code is missing features that were requested in the prompt. Detected 1 missing feature(s): Check"
+        }
+      ],
+      "severity_score": 6,
+      "expected_bug_type": "wrong_input_type",
+      "execution_time": 11.035360097885132,
+      "analysis_id": 390
+    },
+    {
+      "test_case_id": 38,
+      "name": "Bug - String Concatenation with None",
+      "expected": "bug",
+      "predicted": "clean",
+      "correct": false,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "No Bugs Detected",
+          "severity": 0,
+          "description": "Static and dynamic analysis did not detect any obvious bugs. However, logic errors or missing corner"
+        }
+      ],
+      "severity_score": 0,
+      "expected_bug_type": "missing_corner_case",
+      "execution_time": 62.18601202964783,
+      "analysis_id": 391
+    },
+    {
+      "test_case_id": 39,
+      "name": "Bug - Using = Instead of ==",
+      "expected": "bug",
+      "predicted": "bug",
+      "correct": true,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "Syntax Error",
+          "severity": 9,
+          "description": "The code contains a syntax error at line 2: invalid syntax. Maybe you meant '==' or ':=' instead of "
+        }
+      ],
+      "severity_score": 9,
+      "expected_bug_type": "syntax_error",
+      "execution_time": 15.092191934585571,
+      "analysis_id": 392
+    },
+    {
+      "test_case_id": 40,
+      "name": "Bug - Accessing Non-existent Dict Key",
+      "expected": "bug",
+      "predicted": "clean",
+      "correct": false,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "No Bugs Detected",
+          "severity": 0,
+          "description": "Static and dynamic analysis did not detect any obvious bugs. However, logic errors or missing corner"
+        }
+      ],
+      "severity_score": 0,
+      "expected_bug_type": "missing_corner_case",
+      "execution_time": 8.688572883605957,
+      "analysis_id": 393
+    },
+    {
+      "test_case_id": 41,
+      "name": "Clean - List Comprehension with Condition",
+      "expected": "clean",
+      "predicted": "clean",
+      "correct": true,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "No Bugs Detected",
+          "severity": 0,
+          "description": "Static and dynamic analysis did not detect any obvious bugs. However, logic errors or missing corner"
+        }
+      ],
+      "severity_score": 0,
+      "expected_bug_type": null,
+      "execution_time": 8.27426290512085,
+      "analysis_id": 394
+    },
+    {
+      "test_case_id": 42,
+      "name": "Clean - Dictionary Comprehension",
+      "expected": "clean",
+      "predicted": "clean",
+      "correct": true,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "No Bugs Detected",
+          "severity": 0,
+          "description": "Static and dynamic analysis did not detect any obvious bugs. However, logic errors or missing corner"
+        }
+      ],
+      "severity_score": 0,
+      "expected_bug_type": null,
+      "execution_time": 8.956091165542603,
+      "analysis_id": 395
+    },
+    {
+      "test_case_id": 43,
+      "name": "Clean - Multiple Return Paths",
+      "expected": "clean",
+      "predicted": "clean",
+      "correct": true,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "No Bugs Detected",
+          "severity": 0,
+          "description": "Static and dynamic analysis did not detect any obvious bugs. However, logic errors or missing corner"
+        }
+      ],
+      "severity_score": 0,
+      "expected_bug_type": null,
+      "execution_time": 8.529801845550537,
+      "analysis_id": 396
+    },
+    {
+      "test_case_id": 44,
+      "name": "Clean - Nested Functions",
+      "expected": "clean",
+      "predicted": "clean",
+      "correct": true,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "No Bugs Detected",
+          "severity": 0,
+          "description": "Static and dynamic analysis did not detect any obvious bugs. However, logic errors or missing corner"
+        }
+      ],
+      "severity_score": 0,
+      "expected_bug_type": null,
+      "execution_time": 9.167951583862305,
+      "analysis_id": 397
+    },
+    {
+      "test_case_id": 45,
+      "name": "Clean - Set Operations",
+      "expected": "clean",
+      "predicted": "clean",
+      "correct": true,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "No Bugs Detected",
+          "severity": 0,
+          "description": "Static and dynamic analysis did not detect any obvious bugs. However, logic errors or missing corner"
+        }
+      ],
+      "severity_score": 0,
+      "expected_bug_type": null,
+      "execution_time": 11.29830288887024,
+      "analysis_id": 398
+    },
+    {
+      "test_case_id": 46,
+      "name": "Clean - String Formatting",
+      "expected": "clean",
+      "predicted": "clean",
+      "correct": true,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "No Bugs Detected",
+          "severity": 0,
+          "description": "Static and dynamic analysis did not detect any obvious bugs. However, logic errors or missing corner"
+        }
+      ],
+      "severity_score": 0,
+      "expected_bug_type": null,
+      "execution_time": 8.28996205329895,
+      "analysis_id": 399
+    },
+    {
+      "test_case_id": 47,
+      "name": "Clean - Enumerate Usage",
+      "expected": "clean",
+      "predicted": "clean",
+      "correct": true,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "No Bugs Detected",
+          "severity": 0,
+          "description": "Static and dynamic analysis did not detect any obvious bugs. However, logic errors or missing corner"
+        }
+      ],
+      "severity_score": 0,
+      "expected_bug_type": null,
+      "execution_time": 7.637633562088013,
+      "analysis_id": 400
+    },
+    {
+      "test_case_id": 48,
+      "name": "Clean - Zip Function",
+      "expected": "clean",
+      "predicted": "clean",
+      "correct": true,
+      "bug_count": 1,
+      "bugs_found": [
+        {
+          "pattern_name": "No Bugs Detected",
+          "severity": 0,
+          "description": "Static and dynamic analysis did not detect any obvious bugs. However, logic errors or missing corner"
+        }
+      ],
+      "severity_score": 0,
+      "expected_bug_type": null,
+      "execution_time": 8.45000672340393,
+      "analysis_id": 401
+    }
+  ],
+  "timestamp": "2026-02-23T02:58:17.526031"
+}

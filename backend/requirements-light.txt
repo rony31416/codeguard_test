@@ -10,10 +10,11 @@ python-multipart
 docker 
 pylint 
 pyflakes 
-
+slowapi  
 # Database
 sqlalchemy 
 psycopg2-binary 
+astroid
 
 # Utilities
 pydantic 
