@@ -189,50 +189,52 @@ export class CodeGuardPanel implements vscode.WebviewViewProvider {
     }
 
     private _getHtmlForWebview(webview: vscode.Webview): string {
-        // Try multiple paths for robustness
         const fs = require('fs');
         const path = require('path');
         
-        // Path 1: Development mode (src folder exists)
-        let htmlPath = vscode.Uri.joinPath(this._extensionUri, 'src', 'webview', 'webview.html');
+        // Priority order for finding webview.html:
+        // 1. Development mode: src/webview/webview.html
+        // 2. Production mode: out/webview/webview.html (created by esbuild)
         
-        try {
-            if (fs.existsSync(htmlPath.fsPath)) {
-                return fs.readFileSync(htmlPath.fsPath, 'utf8');
+        const searchPaths = [
+            vscode.Uri.joinPath(this._extensionUri, 'out', 'webview', 'webview.html'),
+            vscode.Uri.joinPath(this._extensionUri, 'src', 'webview', 'webview.html')
+        ];
+        
+        for (const htmlPath of searchPaths) {
+            try {
+                if (fs.existsSync(htmlPath.fsPath)) {
+                    console.log('[CodeGuard] Loading webview from:', htmlPath.fsPath);
+                    return fs.readFileSync(htmlPath.fsPath, 'utf8');
+                }
+            } catch (error) {
+                console.error('[CodeGuard] Failed to read from:', htmlPath.fsPath, error);
             }
-        } catch (error) {
-            // Continue to next path
         }
         
-        // Path 2: Production mode (out folder)
-        htmlPath = vscode.Uri.joinPath(this._extensionUri, 'out', 'webview', 'webview.html');
-        try {
-            if (fs.existsSync(htmlPath.fsPath)) {
-                return fs.readFileSync(htmlPath.fsPath, 'utf8');
-            }
-        } catch (error) {
-            // Continue to next path
-        }
+        // If all paths fail, return detailed error message
+        console.error('[CodeGuard] Could not find webview.html in any location');
+        console.error('[CodeGuard] Extension URI:', this._extensionUri.fsPath);
+        console.error('[CodeGuard] Searched paths:', searchPaths.map(p => p.fsPath));
         
-        // Path 3: Root of extension (fallback)
-        htmlPath = vscode.Uri.joinPath(this._extensionUri, 'webview.html');
-        try {
-            if (fs.existsSync(htmlPath.fsPath)) {
-                return fs.readFileSync(htmlPath.fsPath, 'utf8');
-            }
-        } catch (error) {
-            // Final fallback
-        }
-        
-        // If all paths fail, return error message in HTML
         return `<!DOCTYPE html>
         <html>
         <head><meta charset="UTF-8"></head>
-        <body style="padding: 20px; color: #fff;">
-            <h3>Error Loading CodeGuard Panel</h3>
+        <body style="padding: 20px; color: #fff; font-family: sans-serif;">
+            <h3>❌ Error Loading CodeGuard Panel</h3>
             <p>Could not find webview.html in any expected location.</p>
-            <p>Extension URI: ${this._extensionUri.fsPath}</p>
-            <p>Please try reloading VS Code or reinstalling the extension.</p>
+            <p><strong>Extension URI:</strong> ${this._extensionUri.fsPath}</p>
+            <p><strong>Searched locations:</strong></p>
+            <ul>
+                ${searchPaths.map(p => `<li>${p.fsPath}</li>`).join('')}
+            </ul>
+            <hr>
+            <h4>How to fix:</h4>
+            <ol>
+                <li>Reinstall the extension</li>
+                <li>Or rebuild it: <code>npm run compile</code></li>
+                <li>Reload VS Code</li>
+            </ol>
         </body>
         </html>`;
     }

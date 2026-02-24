@@ -130,7 +130,15 @@ export function activate(context: vscode.ExtensionContext) {
         }
     );
 
-    context.subscriptions.push(analyzeFileCommand, analyzeSelectionCommand);
+    // Command: Open Panel (focus on the sidebar)
+    let openPanelCommand = vscode.commands.registerCommand(
+        'codeguard.openPanel',
+        async () => {
+            await vscode.commands.executeCommand('codeguard.sidePanel.focus');
+        }
+    );
+
+    context.subscriptions.push(analyzeFileCommand, analyzeSelectionCommand, openPanelCommand);
 }
 
 // Add visual decorations to highlight bugs in editor

@@ -15523,35 +15523,41 @@ ${bug.description}
   _getHtmlForWebview(webview) {
     const fs = require("fs");
     const path = require("path");
-    let htmlPath = vscode2.Uri.joinPath(this._extensionUri, "src", "webview", "webview.html");
-    try {
-      if (fs.existsSync(htmlPath.fsPath)) {
-        return fs.readFileSync(htmlPath.fsPath, "utf8");
+    const searchPaths = [
+      vscode2.Uri.joinPath(this._extensionUri, "out", "webview", "webview.html"),
+      vscode2.Uri.joinPath(this._extensionUri, "src", "webview", "webview.html")
+    ];
+    for (const htmlPath of searchPaths) {
+      try {
+        if (fs.existsSync(htmlPath.fsPath)) {
+          console.log("[CodeGuard] Loading webview from:", htmlPath.fsPath);
+          return fs.readFileSync(htmlPath.fsPath, "utf8");
+        }
+      } catch (error) {
+        console.error("[CodeGuard] Failed to read from:", htmlPath.fsPath, error);
       }
-    } catch (error) {
     }
-    htmlPath = vscode2.Uri.joinPath(this._extensionUri, "out", "webview", "webview.html");
-    try {
-      if (fs.existsSync(htmlPath.fsPath)) {
-        return fs.readFileSync(htmlPath.fsPath, "utf8");
-      }
-    } catch (error) {
-    }
-    htmlPath = vscode2.Uri.joinPath(this._extensionUri, "webview.html");
-    try {
-      if (fs.existsSync(htmlPath.fsPath)) {
-        return fs.readFileSync(htmlPath.fsPath, "utf8");
-      }
-    } catch (error) {
-    }
+    console.error("[CodeGuard] Could not find webview.html in any location");
+    console.error("[CodeGuard] Extension URI:", this._extensionUri.fsPath);
+    console.error("[CodeGuard] Searched paths:", searchPaths.map((p) => p.fsPath));
     return `<!DOCTYPE html>
         <html>
         <head><meta charset="UTF-8"></head>
-        <body style="padding: 20px; color: #fff;">
-            <h3>Error Loading CodeGuard Panel</h3>
+        <body style="padding: 20px; color: #fff; font-family: sans-serif;">
+            <h3>\u274C Error Loading CodeGuard Panel</h3>
             <p>Could not find webview.html in any expected location.</p>
-            <p>Extension URI: ${this._extensionUri.fsPath}</p>
-            <p>Please try reloading VS Code or reinstalling the extension.</p>
+            <p><strong>Extension URI:</strong> ${this._extensionUri.fsPath}</p>
+            <p><strong>Searched locations:</strong></p>
+            <ul>
+                ${searchPaths.map((p) => `<li>${p.fsPath}</li>`).join("")}
+            </ul>
+            <hr>
+            <h4>How to fix:</h4>
+            <ol>
+                <li>Reinstall the extension</li>
+                <li>Or rebuild it: <code>npm run compile</code></li>
+                <li>Reload VS Code</li>
+            </ol>
         </body>
         </html>`;
   }
@@ -15658,7 +15664,13 @@ function activate(context) {
       });
     }
   );
-  context.subscriptions.push(analyzeFileCommand, analyzeSelectionCommand);
+  let openPanelCommand = vscode3.commands.registerCommand(
+    "codeguard.openPanel",
+    async () => {
+      await vscode3.commands.executeCommand("codeguard.sidePanel.focus");
+    }
+  );
+  context.subscriptions.push(analyzeFileCommand, analyzeSelectionCommand, openPanelCommand);
 }
 function addBugDecorations(editor, bugPatterns) {
   const decorationType = vscode3.window.createTextEditorDecorationType({

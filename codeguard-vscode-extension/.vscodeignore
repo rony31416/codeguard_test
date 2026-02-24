@@ -1,13 +1,13 @@
 .vscode/**
 .vscode-test/**
-src/**/*.ts
-src/**/*.map
+src/**
 .gitignore
 .yarnrc
 vsc-extension-quickstart.md
 **/tsconfig.json
 **/.eslintrc.json
 **/*.map
+!out/**/*.map
 node_modules/**/*.md
 node_modules/**/.bin
 node_modules/**/LICENSE
@@ -17,4 +17,6 @@ test_code.py
 TEST_*.md
 QUICK_START.md
 *.vsix
-!src/webview/webview.html
+esbuild.js
+.eslintrc.*
+package-lock.json

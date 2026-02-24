@@ -2,7 +2,7 @@
   "name": "codeguard-llm-bugs-classifier",
   "displayName": "CodeGuard LLM Bugs Classifier",
   "description": "LLM Bug Taxonomy Classifier & Analyzer for AI-generated code",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "publisher": "RonyMajumder",
   "icon": "media/logo.ico",
   "engines": {
